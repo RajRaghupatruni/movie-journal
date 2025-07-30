@@ -94,3 +94,34 @@
   border-color: #f4f4f5 !important;
 }
 
+/* --- WATCHLIST ADDITIONS --- */
+
+.custom-toast {
+  @apply px-4 py-2 rounded-lg shadow-lg border border-zinc-700 bg-zinc-900 text-white text-sm flex items-center justify-between gap-4;
+}
+
+.custom-toast-button {
+  @apply text-indigo-400 underline hover:text-indigo-300 text-sm;
+}
+
+.card-overlay {
+  @apply absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4;
+}
+
+/* Optional future modal styles */
+.confirm-modal {
+  @apply bg-zinc-900 text-white p-6 rounded-xl border border-zinc-700 shadow-lg;
+}
+
+.confirm-modal-button {
+  @apply px-4 py-2 rounded-md font-medium transition-colors;
+}
+
+.confirm-button-yes {
+  @apply bg-red-600 hover:bg-red-700 text-white;
+}
+
+.confirm-button-no {
+  @apply bg-zinc-700 hover:bg-zinc-600 text-white;
+}
+

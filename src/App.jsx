@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import MovieSearch from "./components/MovieSearch";
 import WatchedList from "./components/WatchedList";
+import Watchlist from "./components/Watchlist"; // ⬅️ New component
 import { db } from "./firebase";
 import {
   collection,
@@ -14,11 +15,13 @@ import {
 
 function App() {
   const [watchedMovies, setWatchedMovies] = useState([]);
+  const [watchlistMovies, setWatchlistMovies] = useState([]); // ⬅️ New state
   const [selectedMonthYear, setSelectedMonthYear] = useState("all");
   const [activeTab, setActiveTab] = useState("search");
   const [displayCount, setDisplayCount] = useState(20);
   const [inlineSearch, setInlineSearch] = useState("");
 
+  // 🔁 Firestore listener for watched movies
   useEffect(() => {
     const q = query(
       collection(db, "watchedMovies"),
@@ -30,6 +33,18 @@ function App() {
         ...doc.data(),
       }));
       setWatchedMovies(movies);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 🔁 Firestore listener for watchlist
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "watchlistMovies"), (snapshot) => {
+      const movies = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setWatchlistMovies(movies);
     });
     return () => unsubscribe();
   }, []);
@@ -65,29 +80,41 @@ function App() {
         </p>
       </header>
 
+      {/* 🔁 Tab navigation */}
       <div className="flex justify-center space-x-4 mt-6">
         <button
           onClick={() => setActiveTab("search")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`tab-button ${
             activeTab === "search"
-              ? "bg-zinc-700 text-white"
-              : "bg-zinc-800 text-zinc-400 hover:text-white"
+              ? "tab-button-active"
+              : "tab-button-inactive"
           }`}
         >
           Search
         </button>
         <button
           onClick={() => setActiveTab("watched")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`tab-button ${
             activeTab === "watched"
-              ? "bg-zinc-700 text-white"
-              : "bg-zinc-800 text-zinc-400 hover:text-white"
+              ? "tab-button-active"
+              : "tab-button-inactive"
           }`}
         >
           Watched
         </button>
+        <button
+          onClick={() => setActiveTab("watchlist")}
+          className={`tab-button ${
+            activeTab === "watchlist"
+              ? "tab-button-active"
+              : "tab-button-inactive"
+          }`}
+        >
+          Watchlist
+        </button>
       </div>
 
+      {/* 🔁 Render based on tab */}
       {activeTab === "search" && (
         <div className="max-w-2xl mx-auto mt-10 px-4">
           <MovieSearch onAdd={handleAddMovie} />
@@ -105,6 +132,10 @@ function App() {
           displayCount={displayCount}
           setDisplayCount={setDisplayCount}
         />
+      )}
+
+      {activeTab === "watchlist" && (
+        <Watchlist watchlistMovies={watchlistMovies} />
       )}
     </div>
   );

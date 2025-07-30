@@ -116,7 +116,6 @@ function WatchedList() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto px-4 py-6">
-      {/* Filter Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <select
           value={selectedMonthYear}
@@ -144,7 +143,6 @@ function WatchedList() {
         />
       </div>
 
-      {/* Watched Movie Grid */}
       {visibleMovies.length === 0 ? (
         <div className="h-72 bg-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-inner flex flex-col items-center justify-center text-zinc-400 border border-dashed border-zinc-600">
           <span className="text-xl">No movies found...</span>
@@ -183,7 +181,7 @@ function WatchedList() {
                   />
                 </div>
 
-                {/* Burger menu */}
+                {/* Burger Menu */}
                 <div className="absolute top-3 right-3">
                   <div className="relative">
                     <button
@@ -239,7 +237,6 @@ function WatchedList() {
         </div>
       )}
 
-      {/* Load More */}
       {visibleCount < filteredMovies.length && (
         <div className="text-center mt-4">
           <button

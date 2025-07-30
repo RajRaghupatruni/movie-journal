@@ -9,7 +9,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Timestamp } from "firebase/firestore";
 
-function AddMovieModal({ movie, onSave }) {
+function AddMovieModal({ movie, onSave, triggerClass, children }) {
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState("");
   const [review, setReview] = useState("");
@@ -53,25 +53,31 @@ function AddMovieModal({ movie, onSave }) {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <button className="w-full text-left">
-          <div className="flex gap-4 bg-zinc-900/70 text-white backdrop-blur-lg border border-zinc-700 rounded-xl shadow-md p-3 hover:bg-zinc-800/80 transition">
-            <img
-              src={
-                movie.poster_path
-                  ? `https://image.tmdb.org/t/p/w200${movie.poster_path}`
-                  : "https://via.placeholder.com/100x150?text=No+Image"
-              }
-              alt={movie.title}
-              className="w-20 h-auto rounded-md object-cover"
-            />
-            <div>
-              <div className="font-semibold">{movie.title}</div>
-              <div className="text-sm text-gray-400">
-                {movie.release_date?.slice(0, 4)}
+        {triggerClass ? (
+          <button className={triggerClass}>
+            {children || "Add to Watched List"}
+          </button>
+        ) : (
+          <button className="w-full text-left">
+            <div className="flex gap-4 bg-zinc-900/70 text-white backdrop-blur-lg border border-zinc-700 rounded-xl shadow-md p-3 hover:bg-zinc-800/80 transition">
+              <img
+                src={
+                  movie.poster_path
+                    ? `https://image.tmdb.org/t/p/w200${movie.poster_path}`
+                    : "https://via.placeholder.com/100x150?text=No+Image"
+                }
+                alt={movie.title}
+                className="w-20 h-auto rounded-md object-cover"
+              />
+              <div>
+                <div className="font-semibold">{movie.title}</div>
+                <div className="text-sm text-gray-400">
+                  {movie.release_date?.slice(0, 4)}
+                </div>
               </div>
             </div>
-          </div>
-        </button>
+          </button>
+        )}
       </Dialog.Trigger>
 
       <Dialog.Portal>

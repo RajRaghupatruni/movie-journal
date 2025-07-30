@@ -15,8 +15,9 @@ import { db } from "../firebase";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import EmojiPicker from "emoji-picker-react";
+import { addDoc, collection } from "firebase/firestore";
 
-function EditMovieModal({ movie, triggerClass }) {
+function EditMovieModal({ movie, triggerClass, onComplete, children }) {
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(movie.rating || "");
   const [review, setReview] = useState(movie.review || "");
@@ -43,7 +44,6 @@ function EditMovieModal({ movie, triggerClass }) {
         }
       });
 
-      // Wait for the dialog and DOM to render fully before injecting review
       requestAnimationFrame(() => {
         if (editorRef.current) {
           editorRef.current.innerHTML = movie.review || "";
@@ -55,11 +55,26 @@ function EditMovieModal({ movie, triggerClass }) {
   const handleUpdate = async () => {
     if (!rating || !dateWatched) return;
 
-    await updateDoc(doc(db, "watchedMovies", movie.id), {
+    const newData = {
+      tmdbId: movie.tmdbId || movie.id,
+      title: movie.title,
+      poster: movie.poster,
       rating,
       review,
       dateWatched: Timestamp.fromDate(dateWatched),
-    });
+    };
+
+    if (movie.id && movie.fromWatchlist) {
+      // If coming from watchlist, add to watchedMovies
+      await addDoc(collection(db, "watchedMovies"), newData);
+
+      // Remove from watchlist (caller handles this via onComplete)
+      if (onComplete) await onComplete(movie.id);
+
+    } else {
+      // Editing existing watched movie
+      await updateDoc(doc(db, "watchedMovies", movie.id), newData);
+    }
 
     setOpen(false);
   };
@@ -81,14 +96,18 @@ function EditMovieModal({ movie, triggerClass }) {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <button className={triggerClass}>Edit</button>
+        <button className={triggerClass}>
+          {children || "Edit"}
+        </button>
       </Dialog.Trigger>
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" />
         <Dialog.Content className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-zinc-900 text-white p-6 rounded-xl w-full max-w-md border border-zinc-700 shadow-lg space-y-4">
           <div className="flex justify-between items-center">
-            <Dialog.Title className="text-lg font-bold">Edit {movie.title}</Dialog.Title>
+            <Dialog.Title className="text-lg font-bold">
+              {movie.fromWatchlist ? `Mark as Watched: ${movie.title}` : `Edit ${movie.title}`}
+            </Dialog.Title>
             <Dialog.Close>
               <X className="w-5 h-5 text-zinc-500 hover:text-white" />
             </Dialog.Close>
@@ -100,7 +119,7 @@ function EditMovieModal({ movie, triggerClass }) {
             <DatePicker
               selected={dateWatched}
               onChange={(date) => setDateWatched(date)}
-              className="w-full bg-zinc-800 border border-zinc-600 rounded-md px-3 py-2 text-sm text-zinc-100 placeholder-zinc-400"
+              className="w-full bg-zinc-800 border border-zinc-600 rounded-md px-3 py-2 text-sm text-zinc-100"
               dateFormat="MMMM d, yyyy"
               maxDate={new Date()}
               showYearDropdown
@@ -186,7 +205,7 @@ function EditMovieModal({ movie, triggerClass }) {
             onClick={handleUpdate}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-md"
           >
-            Save Changes
+            {movie.fromWatchlist ? "Mark as Watched" : "Save Changes"}
           </button>
         </Dialog.Content>
       </Dialog.Portal>
