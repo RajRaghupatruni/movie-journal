@@ -18,17 +18,45 @@ function MovieSearch({ onAdd }) {
       }
 
       try {
-        const res = await fetch(
+        // 1. Try searching by movie title
+        const movieRes = await fetch(
           `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`
         );
-        const data = await res.json();
-        setResults(data.results || []);
+        const movieData = await movieRes.json();
+        let combinedResults = movieData.results || [];
+
+        // 2. If very few results (0–1), try treating query as actor name
+        if (combinedResults.length <= 1) {
+          const personRes = await fetch(
+            `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`
+          );
+          const personData = await personRes.json();
+          const person = personData.results?.[0];
+
+          if (person) {
+            const creditsRes = await fetch(
+              `https://api.themoviedb.org/3/person/${person.id}/movie_credits?api_key=${TMDB_API_KEY}`
+            );
+            const creditsData = await creditsRes.json();
+            const actorMovies = creditsData.cast || [];
+
+            // Merge without duplicates (based on movie ID)
+            const movieIds = new Set(combinedResults.map((m) => m.id));
+            actorMovies.forEach((m) => {
+              if (!movieIds.has(m.id)) {
+                combinedResults.push(m);
+              }
+            });
+          }
+        }
+
+        setResults(combinedResults);
       } catch (err) {
-        console.error("Error fetching TMDb movies:", err);
+        console.error("Error fetching TMDb data:", err);
       }
     };
 
-    const delay = setTimeout(fetchMovies, 500); // debounce
+    const delay = setTimeout(fetchMovies, 500);
     return () => clearTimeout(delay);
   }, [query]);
 
@@ -49,7 +77,7 @@ function MovieSearch({ onAdd }) {
     <div className="space-y-4 relative">
       <input
         type="text"
-        placeholder="Search for a movie..."
+        placeholder="Search for a movie or actor..."
         className="w-full px-4 py-3 rounded-xl bg-zinc-800 text-white placeholder-zinc-400 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-md backdrop-blur-sm"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -74,7 +102,6 @@ function MovieSearch({ onAdd }) {
                 <div className="text-zinc-400 text-xs">{movie.release_date?.slice(0, 4)}</div>
               </div>
 
-              {/* Hover buttons */}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center space-y-2 px-2">
                 <AddMovieModal
                   movie={movie}
