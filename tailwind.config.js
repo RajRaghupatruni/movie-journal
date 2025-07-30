@@ -5,7 +5,12 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['Poppins', 'sans-serif'],         // Default body font
+        title: ['Poppins', 'sans-serif'],        // Optional: special use for headers
+      },
+    },
   },
   plugins: [require('@tailwindcss/line-clamp')],
-}
+};

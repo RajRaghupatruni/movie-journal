@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import MovieSearch from "./components/MovieSearch";
 import WatchedList from "./components/WatchedList";
-import Watchlist from "./components/Watchlist"; // ⬅️ New component
+import Watchlist from "./components/Watchlist";
 import { db } from "./firebase";
 import {
   collection,
@@ -15,13 +15,12 @@ import {
 
 function App() {
   const [watchedMovies, setWatchedMovies] = useState([]);
-  const [watchlistMovies, setWatchlistMovies] = useState([]); // ⬅️ New state
+  const [watchlistMovies, setWatchlistMovies] = useState([]);
   const [selectedMonthYear, setSelectedMonthYear] = useState("all");
   const [activeTab, setActiveTab] = useState("search");
   const [displayCount, setDisplayCount] = useState(20);
   const [inlineSearch, setInlineSearch] = useState("");
 
-  // 🔁 Firestore listener for watched movies
   useEffect(() => {
     const q = query(
       collection(db, "watchedMovies"),
@@ -37,7 +36,6 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // 🔁 Firestore listener for watchlist
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "watchlistMovies"), (snapshot) => {
       const movies = snapshot.docs.map((doc) => ({
@@ -71,12 +69,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-zinc-800 text-zinc-100 font-sans">
-      <header className="bg-zinc-900/70 backdrop-blur-lg shadow-md py-4 px-6 sticky top-0 z-10 border-b border-zinc-700">
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-center tracking-tight text-white">
-          🎬 Movie Journal
+      <header className="bg-zinc-900/70 backdrop-blur-lg shadow-md py-6 px-6 sticky top-0 z-10 border-b border-zinc-700">
+        <h1 className="text-4xl sm:text-5xl text-center tracking-tight text-white drop-shadow-md font-title">
+          Tandem
         </h1>
-        <p className="text-center text-sm text-zinc-400 mt-1">
-          Track what you watch. Remember what you feel.
+        <p className="text-center text-base sm:text-lg text-zinc-400 mt-2 font-light tracking-wide italic font-sans">
+          From watchlist to watched. Together.
         </p>
       </header>
 
@@ -84,30 +82,30 @@ function App() {
       <div className="flex justify-center space-x-4 mt-6">
         <button
           onClick={() => setActiveTab("search")}
-          className={`tab-button ${
+          className={`px-4 py-2 rounded-md transition ${
             activeTab === "search"
-              ? "tab-button-active"
-              : "tab-button-inactive"
+              ? "bg-indigo-600 text-white"
+              : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
           }`}
         >
           Search
         </button>
         <button
           onClick={() => setActiveTab("watched")}
-          className={`tab-button ${
+          className={`px-4 py-2 rounded-md transition ${
             activeTab === "watched"
-              ? "tab-button-active"
-              : "tab-button-inactive"
+              ? "bg-indigo-600 text-white"
+              : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
           }`}
         >
           Watched
         </button>
         <button
           onClick={() => setActiveTab("watchlist")}
-          className={`tab-button ${
+          className={`px-4 py-2 rounded-md transition ${
             activeTab === "watchlist"
-              ? "tab-button-active"
-              : "tab-button-inactive"
+              ? "bg-indigo-600 text-white"
+              : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
           }`}
         >
           Watchlist
