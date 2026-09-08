@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import MovieSearch from "./components/MovieSearch";
 import WatchedList from "./components/WatchedList";
 import Watchlist from "./components/Watchlist";
+import AddEventModal from "./components/AddEventModal";
+import Timeline from "./components/Timeline";
 import { db } from "./firebase";
 import {
   collection,
@@ -78,6 +80,11 @@ function App() {
         </p>
       </header>
 
+      {/* 🎯 Add Event Button */}
+      <div className="flex justify-center mt-6">
+        <AddEventModal tandemId="test-tandem-id" />
+      </div>
+
       {/* 🔁 Tab navigation */}
       <div className="flex justify-center space-x-4 mt-6">
         <button
@@ -110,6 +117,16 @@ function App() {
         >
           Watchlist
         </button>
+        <button
+          onClick={() => setActiveTab("timeline")}
+          className={`px-4 py-2 rounded-md transition ${
+            activeTab === "timeline"
+              ? "bg-indigo-600 text-white"
+              : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+          }`}
+        >
+          Timeline
+        </button>
       </div>
 
       {/* 🔁 Render based on tab */}
@@ -134,6 +151,12 @@ function App() {
 
       {activeTab === "watchlist" && (
         <Watchlist watchlistMovies={watchlistMovies} />
+      )}
+
+      {activeTab === "timeline" && (
+        <div className="mt-8">
+          <Timeline tandemId="test-tandem-id" />
+        </div>
       )}
     </div>
   );
