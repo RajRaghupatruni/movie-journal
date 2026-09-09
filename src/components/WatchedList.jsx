@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { sanitizeReviewHtml } from "../lib/reviewHtml";
 import { db } from "../firebase";
 import {
   collection,
@@ -177,7 +178,7 @@ function WatchedList() {
                   <p className="text-yellow-400 font-medium text-sm">Rating: {movie.rating}/10</p>
                   <div
                     className="text-zinc-300 text-xs line-clamp-3 prose prose-sm prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: movie.review || "" }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeReviewHtml(movie.review) }}
                   />
                 </div>
 
@@ -261,7 +262,7 @@ function WatchedList() {
               <p className="text-yellow-400">Rating: {modalContent.rating}/10</p>
               <div
                 className="text-zinc-300 text-sm prose prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: modalContent.review || "" }}
+                dangerouslySetInnerHTML={{ __html: sanitizeReviewHtml(modalContent.review) }}
               />
               <button
                 onClick={() => setModalContent(null)}

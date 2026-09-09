@@ -1,0 +1,17 @@
+title = "Tandem source secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "tandem-provider-credential"
+description = "Provider credentials must never be stored in source or examples"
+regex = '''(?i)(?:VITE_)?(?:TMDB|FOURSQUARE|GEOAPIFY|RESEND)[A-Z_]*(?:KEY|TOKEN)\s*[:=]\s*["']?([A-Za-z0-9_/+=-]{16,})'''
+secretGroup = 1
+
+[[allowlists]]
+description = "Firebase browser application identifiers are public configuration, not server credentials"
+condition = "AND"
+paths = ['''(^|/)src/firebase\.js$''']
+regexTarget = "line"
+regexes = ['''^\s*apiKey:\s*"AIza[^"]+",?\s*$''']

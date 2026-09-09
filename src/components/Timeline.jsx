@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { sanitizeReviewHtml } from "../lib/reviewHtml";
 import {
   collection,
   onSnapshot,
@@ -134,7 +135,7 @@ const Timeline = ({ tandemId = "test-tandem-id" }) => {
             {event.review && (
               <div
                 className="prose prose-sm text-zinc-200 max-w-none mb-2"
-                dangerouslySetInnerHTML={{ __html: event.review }}
+                dangerouslySetInnerHTML={{ __html: sanitizeReviewHtml(event.review) }}
               />
             )}
 

@@ -1,8 +1,6 @@
 // components/FoursquareSearch.jsx
 import React, { useState, useEffect } from "react";
-
-const FOURSQUARE_API = "https://api.foursquare.com/v3/places/search";
-const API_KEY = import.meta.env.VITE_FOURSQUARE_API_KEY;
+import { legacyProviderRequest, legacyProviderSearchEnabled } from "../lib/legacyProviders";
 
 const FoursquareSearch = ({ onSelect }) => {
   const [query, setQuery] = useState("");
@@ -14,6 +12,7 @@ const FoursquareSearch = ({ onSelect }) => {
 
   // Get geolocation on mount
   useEffect(() => {
+    if (!legacyProviderSearchEnabled || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCoords({
@@ -30,12 +29,12 @@ const FoursquareSearch = ({ onSelect }) => {
   }, []);
 
   const handleSearch = async (input) => {
-    if (!input) return;
+    if (!legacyProviderSearchEnabled || !input) return;
 
     setLoading(true);
 
     try {
-      let url = `${FOURSQUARE_API}?query=${encodeURIComponent(input)}&limit=5`;
+      let url = `/places/search?query=${encodeURIComponent(input)}&limit=5`;
 
       if (coords) {
         url += `&ll=${coords.lat},${coords.lng}`;
@@ -43,12 +42,7 @@ const FoursquareSearch = ({ onSelect }) => {
         url += `&near=${encodeURIComponent(fallbackCity)}`;
       }
 
-      const res = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          Authorization: API_KEY,
-        },
-      });
+      const res = await legacyProviderRequest(url);
 
       if (!res.ok) {
         const errText = await res.text();
@@ -86,8 +80,10 @@ const FoursquareSearch = ({ onSelect }) => {
 
   return (
     <div className="relative space-y-2">
+      {!legacyProviderSearchEnabled && <p role="status" className="text-sm text-gray-400">Place search is temporarily unavailable.</p>}
       {!coords && (
         <input
+          disabled={!legacyProviderSearchEnabled}
           value={fallbackCity}
           onChange={(e) => setFallbackCity(e.target.value)}
           placeholder="Enter city for search (e.g. Dallas)"
@@ -96,6 +92,7 @@ const FoursquareSearch = ({ onSelect }) => {
       )}
 
       <input
+        disabled={!legacyProviderSearchEnabled}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search for a place..."

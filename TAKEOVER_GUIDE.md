@@ -1,5 +1,7 @@
 # Tandem Repo Takeover Guide
 
+> Historical pre-foundation snapshot. Current setup, security status and migration priorities are in `README.md`, `docs/REPOSITORY_AUDIT.md` and `docs/TARGET_ARCHITECTURE.md`. Review those before following the old provider-key or deployment guidance below.
+
 ## What This Repo Is
 
 This project started as a movie journal and is now halfway through becoming **Tandem**, a shared relationship/activity journal.
@@ -661,4 +663,3 @@ Firebase deploy:
 ```bash
 firebase deploy
 ```
-

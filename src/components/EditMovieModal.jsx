@@ -1,4 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
+import { sanitizeReviewHtml, pasteReviewText, preventReviewDrop } from "../lib/reviewHtml";
 import { useState, useRef, useEffect } from "react";
 import {
   Pencil,
@@ -46,7 +47,7 @@ function EditMovieModal({ movie, triggerClass, onComplete, children }) {
 
       requestAnimationFrame(() => {
         if (editorRef.current) {
-          editorRef.current.innerHTML = movie.review || "";
+          editorRef.current.innerHTML = sanitizeReviewHtml(movie.review);
         }
       });
     }
@@ -60,7 +61,7 @@ function EditMovieModal({ movie, triggerClass, onComplete, children }) {
       title: movie.title,
       poster: movie.poster,
       rating,
-      review,
+      review: sanitizeReviewHtml(review),
       dateWatched: Timestamp.fromDate(dateWatched),
     };
 
@@ -179,6 +180,8 @@ function EditMovieModal({ movie, triggerClass, onComplete, children }) {
 
             <div
               contentEditable
+              onPaste={pasteReviewText}
+              onDrop={preventReviewDrop}
               ref={editorRef}
               onInput={() => setReview(editorRef.current.innerHTML)}
               className="w-full min-h-[90px] max-h-[200px] overflow-y-auto bg-zinc-800 border border-zinc-600 rounded-md px-3 py-2 text-sm text-zinc-100 focus:outline-none"

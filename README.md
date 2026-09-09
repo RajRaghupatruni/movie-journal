@@ -1,12 +1,113 @@
-# React + Vite
+# Tandem
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The existing React movie journal is evolving into a private shared-memory application. This milestone adds FastAPI/PostgreSQL infrastructure and security cleanup. The UI still uses legacy Firestore; authentication, application-data migration and new product features are not implemented.
 
-Currently, two official plugins are available:
+Read the [repository audit](docs/REPOSITORY_AUDIT.md), [target architecture](docs/TARGET_ARCHITECTURE.md), and [verification results](docs/VERIFICATION.md). Desktop is the target; old root planning documents are historical.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**Manual action:** revoke every previously committed TMDb/Foursquare credential. Local `.env` was preserved but untracked; old Git history and deployed bundles still require incident cleanup. Live movie/place search is temporarily disabled to remove browser secrets. Saved records and existing Firestore workflows are retained.
 
-## Expanding the ESLint configuration
+The read-only browser smoke check received Firestore `permission-denied` errors. Saved-data access cannot be verified until the project owner reviews the existing deployed rules/access configuration. No rules were changed and no records were written.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Full development stack
+
+Requires Docker Desktop with Linux containers and Python 3.12+ for the setup helper:
+
+```powershell
+python scripts/dev_setup.py
+docker compose --env-file .env.local up --build -d --wait
+docker compose --env-file .env.local exec backend alembic upgrade head
+docker compose --env-file .env.local ps
+```
+
+The helper creates ignored `.env.local` with a random **local database** password, without reading or overwriting legacy `.env`. Existing `.env.local` is never overwritten. `.env.example` contains names and empty values only; it is a reference, not runnable configuration. Always supply `--env-file .env.local` to Compose.
+
+- [Frontend](http://localhost:5173), [API health](http://localhost:8000/api/health), [API docs](http://localhost:8000/docs).
+- PostgreSQL 16: loopback port 5432, database/user `tandem` by default.
+- Redis 7: loopback port 6379, AOF persistence, currently unused by the backend.
+
+Resolve existing port conflicts before startup. All published ports bind to `127.0.0.1`. Source is copied into images: rebuild after changes. `docker compose --env-file .env.local down` stops the stack and preserves named volumes. Adding `--volumes` erases development data. Changing `.env.local` does not rotate a password in an initialized PostgreSQL role. This Compose file is for local development, not public deployment.
+
+## Local frontend/backend with hot reload
+
+Use Node 22.12+ (current Node 22 LTS preferred), npm and Python 3.12+ (verified on 3.13). Stop the full stack to free application ports, then run from repository root:
+
+```powershell
+python scripts/dev_setup.py
+docker compose --env-file .env.local up -d --wait postgres redis
+npm ci
+npm run dev
+```
+
+In another terminal from repository root:
+
+```powershell
+python -m venv backend/.venv
+backend/.venv/Scripts/python -m pip install -r backend/requirements.lock
+backend/.venv/Scripts/python -m pip install --no-deps -e backend
+cd backend
+.venv/Scripts/alembic upgrade head
+.venv/Scripts/python -m uvicorn app.main:create_app --factory --reload --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+On macOS/Linux replace `Scripts` with `bin`. If PowerShell blocks npm, use `npm.cmd`. Backend settings read root `.env.local` independently of working directory; process environment overrides it. Run Alembic from `backend`, or explicitly supply its config path. No migrations run automatically at startup.
+
+`requirements.lock` pins the verified Python dependency set including development tools; `pyproject.toml` declares direct ranges. Update the lock intentionally in an isolated environment and verify the Linux container as well. Never freeze unrelated applications or editable local paths into it.
+
+## Checks
+
+From repository root:
+
+```powershell
+npm test
+npm run build
+python scripts/scan_secrets.py
+backend/.venv/Scripts/python -m pytest backend/tests -q
+backend/.venv/Scripts/python -m ruff check backend/app backend/tests backend/alembic
+```
+
+Build includes strict TypeScript checks; legacy JSX remains JavaScript. `npm run lint` still reports documented pre-existing issues. Container checks:
+
+```powershell
+docker compose --env-file .env.local exec backend python -m pytest -q -p no:cacheprovider
+docker compose --env-file .env.local exec backend alembic current
+docker compose --env-file .env.local exec backend alembic check
+docker compose --env-file .env.local exec redis redis-cli ping
+```
+
+The integration test skips unless `TEST_DATABASE_URL` is set. To use the isolated local Compose database without printing credentials:
+
+```powershell
+docker compose --env-file .env.local exec backend python -c "import os,pytest; os.environ['TEST_DATABASE_URL']=os.environ['DATABASE_URL']; raise SystemExit(pytest.main(['-q','-p','no:cacheprovider']))"
+```
+
+The empty baseline supports `alembic downgrade base` then `alembic upgrade head` on a disposable development database. Review future migrations before downgrade: they may remove real data. Health checks test connectivity, not migration revision.
+
+## Secret scanning
+
+The Python source guard scans tracked and nonignored new source, rejects tracked env files and nonempty example values, and prints filenames/rules only. For a full Gitleaks source scan:
+
+```powershell
+python scripts/scan_secrets.py --export
+```
+
+Mount the printed snapshot path (ignored local env files are excluded):
+
+```text
+docker run --rm -v "<printed-absolute-snapshot-path>:/repo:ro" zricethezav/gitleaks:v8.30.0 dir /repo --config /repo/.gitleaks.toml --redact --no-banner
+```
+
+CI gates current source with Gitleaks and the Python guard, runs frontend tests/build, backend tests against PostgreSQL, and Alembic upgrade/check/downgrade/upgrade. Historical scans use Gitleaks `git` with `--log-opts=--all` separately; historical findings remain an incident requiring rotation, not a reason to disable scanning.
+
+## Configuration
+
+| Name | Purpose |
+| --- | --- |
+| `APP_ENV` | development/test/production; defaults to development |
+| `LOG_LEVEL` | DEBUG/INFO/WARNING/ERROR/CRITICAL; defaults to INFO |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Compose bootstrap; password required and generated locally |
+| `DATABASE_URL` | Required backend `postgresql+psycopg` URL; Compose supplies internal hostname `postgres` |
+| `CORS_ORIGINS` | JSON array of local HTTP origins; defaults to localhost and 127.0.0.1 port 5173, enabled in development only |
+| `API_PROXY_TARGET` | Vite **process environment** override; defaults to http://127.0.0.1:8000, Compose uses http://backend:8000 |
+| `REDIS_URL` | Reserved future name, not currently read or required |
+
+No `VITE_*` values are exposed. Firebase client identifiers remain public config pending migration. No backend provider secrets, auth, storage or email credentials are required in this milestone. Follow the audit's ordered migration plan before feature development or deployment.

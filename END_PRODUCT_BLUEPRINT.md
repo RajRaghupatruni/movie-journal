@@ -1,5 +1,7 @@
 # Tandem End Product Blueprint
 
+> Historical product sketch. `docs/TARGET_ARCHITECTURE.md` supersedes the Firebase/mobile plans below: desktop-first React/TypeScript, FastAPI and PostgreSQL. No feature work is part of the foundation milestone.
+
 ## Product Goal
 
 Build Tandem into a shared memory and planning app for two people (or a small group), where users can:
@@ -235,4 +237,3 @@ You can consider this phase complete when:
 - Filtering and sorting are reliable and intuitive
 - Place events are easy to add and visually informative
 - Timeline is clearly the primary product surface
-

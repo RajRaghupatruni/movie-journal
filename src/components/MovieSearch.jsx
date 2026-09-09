@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import AddMovieModal from "./AddMovieModal";
 import AddToWatchlistButton from "./AddToWatchlistButton";
-
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+import { legacyProviderRequest, legacyProviderSearchEnabled } from "../lib/legacyProviders";
 
 function MovieSearch({ onAdd }) {
   const [query, setQuery] = useState("");
@@ -12,30 +11,30 @@ function MovieSearch({ onAdd }) {
 
   useEffect(() => {
     const fetchMovies = async () => {
-      if (!query) {
+      if (!legacyProviderSearchEnabled || !query) {
         setResults([]);
         return;
       }
 
       try {
         // 1. Try searching by movie title
-        const movieRes = await fetch(
-          `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`
+        const movieRes = await legacyProviderRequest(
+          `/search/movie?query=${encodeURIComponent(query)}`
         );
         const movieData = await movieRes.json();
         let combinedResults = movieData.results || [];
 
         // 2. If very few results (0–1), try treating query as actor name
         if (combinedResults.length <= 1) {
-          const personRes = await fetch(
-            `https://api.themoviedb.org/3/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`
+          const personRes = await legacyProviderRequest(
+            `/search/person?query=${encodeURIComponent(query)}`
           );
           const personData = await personRes.json();
           const person = personData.results?.[0];
 
           if (person) {
-            const creditsRes = await fetch(
-              `https://api.themoviedb.org/3/person/${person.id}/movie_credits?api_key=${TMDB_API_KEY}`
+            const creditsRes = await legacyProviderRequest(
+              `/person/${person.id}/movie_credits`
             );
             const creditsData = await creditsRes.json();
             const actorMovies = creditsData.cast || [];
@@ -75,7 +74,9 @@ function MovieSearch({ onAdd }) {
 
   return (
     <div className="space-y-4 relative">
+      {!legacyProviderSearchEnabled && <p role="status" className="text-sm text-zinc-400">Movie search is temporarily unavailable. Your saved movies and watchlist remain available.</p>}
       <input
+        disabled={!legacyProviderSearchEnabled}
         type="text"
         placeholder="Search for a movie or actor..."
         className="w-full px-4 py-3 rounded-xl bg-zinc-800 text-white placeholder-zinc-400 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-md backdrop-blur-sm"

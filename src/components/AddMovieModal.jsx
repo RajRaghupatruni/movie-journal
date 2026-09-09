@@ -1,4 +1,5 @@
 import EmojiPicker from "emoji-picker-react";
+import { sanitizeReviewHtml, pasteReviewText, preventReviewDrop } from "../lib/reviewHtml";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState, useRef } from "react";
 import {
@@ -26,7 +27,7 @@ function AddMovieModal({ movie, onSave, triggerClass, children }) {
       poster: movie.poster_path,
       dateWatched: Timestamp.fromDate(dateWatched),
       rating,
-      review,
+      review: sanitizeReviewHtml(review),
     };
 
     onSave(watchedMovie);
@@ -157,6 +158,8 @@ function AddMovieModal({ movie, onSave, triggerClass, children }) {
 
             <div
               contentEditable
+              onPaste={pasteReviewText}
+              onDrop={preventReviewDrop}
               dir="ltr"
               ref={editorRef}
               onInput={() => setReview(editorRef.current.innerHTML)}
