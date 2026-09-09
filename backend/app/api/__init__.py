@@ -1,1 +1,1 @@
-"""HTTP routes; no product endpoints in the foundation milestone."""
+"""HTTP routes for authentication and the tandem membership boundary."""

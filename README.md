@@ -22,7 +22,7 @@ docker compose --env-file .env.local ps
 The helper creates ignored `.env.local` with a random **local database** password, without reading or overwriting legacy `.env`. Existing `.env.local` is never overwritten. `.env.example` contains names and empty values only; it is a reference, not runnable configuration. Always supply `--env-file .env.local` to Compose.
 
 - [Frontend](http://localhost:5173), [API health](http://localhost:8000/api/health), [API docs](http://localhost:8000/docs).
-- PostgreSQL 16: loopback port 5432, database/user `tandem` by default.
+- PostgreSQL 16: loopback port 5432; migrations use `tandem_migrator` and the API uses the non-bypass-RLS `tandem` role by default.
 - Redis 7: loopback port 6379, AOF persistence, currently unused by the backend.
 
 Resolve existing port conflicts before startup. All published ports bind to `127.0.0.1`. Source is copied into images: rebuild after changes. `docker compose --env-file .env.local down` stops the stack and preserves named volumes. Adding `--volumes` erases development data. Changing `.env.local` does not rotate a password in an initialized PostgreSQL role. This Compose file is for local development, not public deployment.
@@ -74,10 +74,10 @@ docker compose --env-file .env.local exec backend alembic check
 docker compose --env-file .env.local exec redis redis-cli ping
 ```
 
-The integration test skips unless `TEST_DATABASE_URL` is set. To use the isolated local Compose database without printing credentials:
+The integration test skips unless both `TEST_DATABASE_URL` and `TEST_DATABASE_OWNER_URL` are set. The former must use the non-bypass-RLS runtime role; the latter is used only to migrate and provision deterministic test identities. To use the isolated local Compose database without printing credentials:
 
 ```powershell
-docker compose --env-file .env.local exec backend python -c "import os,pytest; os.environ['TEST_DATABASE_URL']=os.environ['DATABASE_URL']; raise SystemExit(pytest.main(['-q','-p','no:cacheprovider']))"
+docker compose --env-file .env.local exec backend python -c "import os,pytest; os.environ['TEST_DATABASE_OWNER_URL']=os.environ['DATABASE_URL']; os.environ['TEST_DATABASE_URL']='postgresql+psycopg://tandem_runtime:fixture@postgres:5432/tandem'; raise SystemExit(pytest.main(['-q','-p','no:cacheprovider']))"
 ```
 
 The empty baseline supports `alembic downgrade base` then `alembic upgrade head` on a disposable development database. Review future migrations before downgrade: they may remove real data. Health checks test connectivity, not migration revision.
@@ -105,9 +105,13 @@ CI gates current source with Gitleaks and the Python guard, runs frontend tests/
 | `APP_ENV` | development/test/production; defaults to development |
 | `LOG_LEVEL` | DEBUG/INFO/WARNING/ERROR/CRITICAL; defaults to INFO |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Compose bootstrap; password required and generated locally |
-| `DATABASE_URL` | Required backend `postgresql+psycopg` URL; Compose supplies internal hostname `postgres` |
+| `POSTGRES_MIGRATION_USER`, `POSTGRES_MIGRATION_PASSWORD` | Dedicated schema-migration role; initialized on a fresh PostgreSQL volume |
+| `DATABASE_URL`, `DATABASE_RUNTIME_ROLE` | API runtime URL and expected non-superuser/non-`BYPASSRLS` role |
+| `MIGRATION_DATABASE_URL` | Alembic URL for the dedicated migration role |
 | `CORS_ORIGINS` | JSON array of local HTTP origins; defaults to localhost and 127.0.0.1 port 5173, enabled in development only |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google OIDC client configuration; required only when enabling Google login |
+| `FRONTEND_URL` | Post-login redirect origin |
 | `API_PROXY_TARGET` | Vite **process environment** override; defaults to http://127.0.0.1:8000, Compose uses http://backend:8000 |
 | `REDIS_URL` | Reserved future name, not currently read or required |
 
-No `VITE_*` values are exposed. Firebase client identifiers remain public config pending migration. No backend provider secrets, auth, storage or email credentials are required in this milestone. Follow the audit's ordered migration plan before feature development or deployment.
+No `VITE_*` values are exposed. Firebase client identifiers remain public config pending migration. Google login uses server-side sessions and does not store provider access tokens. A fresh Compose volume creates the migration/runtime role split; an existing volume must be provisioned manually before the API is run with a non-superuser runtime URL. Follow the audit's ordered migration plan before feature development or deployment.
