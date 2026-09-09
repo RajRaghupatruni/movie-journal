@@ -20,7 +20,6 @@ function Watchlist() {
   const [watchlist, setWatchlist] = useState([]);
   const [sortBy, setSortBy] = useState("recent");
   const [searchQuery, setSearchQuery] = useState("");
-  const [lastDeleted, setLastDeleted] = useState(null);
 
   useEffect(() => {
     const q = query(collection(db, "watchlistMovies"), orderBy("addedAt", "desc"));
@@ -39,7 +38,6 @@ function Watchlist() {
     const movieToDelete = watchlist.find((m) => m.id === movieId);
     if (!movieToDelete) return;
 
-    setLastDeleted(movieToDelete);
     await deleteDoc(doc(db, "watchlistMovies", movieId));
 
     toast.custom((t) => (
