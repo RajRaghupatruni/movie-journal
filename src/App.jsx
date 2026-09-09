@@ -1,165 +1,82 @@
-import { useState, useEffect } from "react";
-import MovieSearch from "./components/MovieSearch";
-import WatchedList from "./components/WatchedList";
-import Watchlist from "./components/Watchlist";
-import AddEventModal from "./components/AddEventModal";
-import Timeline from "./components/Timeline";
-import { db } from "./firebase";
-import {
-  collection,
-  onSnapshot,
-  addDoc,
-  deleteDoc,
-  doc,
-  query,
-  orderBy,
-} from "firebase/firestore";
+import { useEffect, useState } from 'react'
+import { ArrowRight, BookOpen, CalendarDays, ChevronDown, Heart, Plus, Sparkles, Star, Tag } from 'lucide-react'
+import { AddMemoryLauncher, AppShell, AnniversaryHero, AvatarStack, CalendarCell, CalendarPanel, EmptyState, FilterChip, MemoryBadge, MemoryCard, MemoryDetail, MonthSwitcher, PageHeader, PhotoStack, SearchField, SectionHeader, SkeletonCard, TypeIcon } from './components/tandem/components'
+import { formatMemoryDate, getAnniversaryCopy, groupMemoriesByYear, loadDemoSnapshot, memoryTypeLabels } from './data/tandemData'
 
-function App() {
-  const [watchedMovies, setWatchedMovies] = useState([]);
-  const [watchlistMovies, setWatchlistMovies] = useState([]);
-  const [selectedMonthYear, setSelectedMonthYear] = useState("all");
-  const [activeTab, setActiveTab] = useState("search");
-  const [displayCount, setDisplayCount] = useState(20);
-  const [inlineSearch, setInlineSearch] = useState("");
-
-  useEffect(() => {
-    const q = query(
-      collection(db, "watchedMovies"),
-      orderBy("dateWatched", "desc")
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const movies = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setWatchedMovies(movies);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "watchlistMovies"), (snapshot) => {
-      const movies = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setWatchlistMovies(movies);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleAddMovie = async (movie) => {
-    const exists = watchedMovies.some((m) => m.tmdbId === movie.id);
-    if (exists) return;
-
-    const newMovie = {
-      tmdbId: movie.id,
-      title: movie.title,
-      poster: movie.poster,
-      dateWatched: movie.dateWatched,
-      rating: movie.rating,
-      review: movie.review,
-    };
-
-    await addDoc(collection(db, "watchedMovies"), newMovie);
-  };
-
-  const handleRemoveMovie = async (id) => {
-    await deleteDoc(doc(db, "watchedMovies", id));
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-zinc-800 text-zinc-100 font-sans">
-      <header className="bg-zinc-900/70 backdrop-blur-lg shadow-md py-6 px-6 sticky top-0 z-10 border-b border-zinc-700">
-        <h1 className="text-4xl sm:text-5xl text-center tracking-tight text-white drop-shadow-md font-title">
-          Tandem
-        </h1>
-        <p className="text-center text-base sm:text-lg text-zinc-400 mt-2 font-light tracking-wide italic font-sans">
-          From watchlist to watched. Together.
-        </p>
-      </header>
-
-      {/* 🎯 Add Event Button */}
-      <div className="flex justify-center mt-6">
-        <AddEventModal tandemId="test-tandem-id" />
-      </div>
-
-      {/* 🔁 Tab navigation */}
-      <div className="flex justify-center space-x-4 mt-6">
-        <button
-          onClick={() => setActiveTab("search")}
-          className={`px-4 py-2 rounded-md transition ${
-            activeTab === "search"
-              ? "bg-indigo-600 text-white"
-              : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
-          }`}
-        >
-          Search
-        </button>
-        <button
-          onClick={() => setActiveTab("watched")}
-          className={`px-4 py-2 rounded-md transition ${
-            activeTab === "watched"
-              ? "bg-indigo-600 text-white"
-              : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
-          }`}
-        >
-          Watched
-        </button>
-        <button
-          onClick={() => setActiveTab("watchlist")}
-          className={`px-4 py-2 rounded-md transition ${
-            activeTab === "watchlist"
-              ? "bg-indigo-600 text-white"
-              : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
-          }`}
-        >
-          Watchlist
-        </button>
-        <button
-          onClick={() => setActiveTab("timeline")}
-          className={`px-4 py-2 rounded-md transition ${
-            activeTab === "timeline"
-              ? "bg-indigo-600 text-white"
-              : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
-          }`}
-        >
-          Timeline
-        </button>
-      </div>
-
-      {/* 🔁 Render based on tab */}
-      {activeTab === "search" && (
-        <div className="max-w-2xl mx-auto mt-10 px-4">
-          <MovieSearch onAdd={handleAddMovie} />
-        </div>
-      )}
-
-      {activeTab === "watched" && (
-        <WatchedList
-          watchedMovies={watchedMovies}
-          handleRemoveMovie={handleRemoveMovie}
-          selectedMonthYear={selectedMonthYear}
-          setSelectedMonthYear={setSelectedMonthYear}
-          inlineSearch={inlineSearch}
-          setInlineSearch={setInlineSearch}
-          displayCount={displayCount}
-          setDisplayCount={setDisplayCount}
-        />
-      )}
-
-      {activeTab === "watchlist" && (
-        <Watchlist watchlistMovies={watchlistMovies} />
-      )}
-
-      {activeTab === "timeline" && (
-        <div className="mt-8">
-          <Timeline tandemId="test-tandem-id" />
-        </div>
-      )}
-    </div>
-  );
+function TodayScreen({ snapshot, onOpen, onAddMemory, onNavigate }) {
+  const anniversary = snapshot.memories.find((memory) => memory.date === '2023-09-09')
+  const recent = snapshot.memories.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3)
+  const shuffle = snapshot.memories.find((memory) => memory.id === 'coast-road')
+  return <div className="screen today-screen">
+    <PageHeader eyebrow="Wednesday · September 9, 2026" title="Your shared story, lately." description="A little place for the days you want to keep close." action={<button className="button button-quiet" onClick={() => onNavigate('/calendar')}><CalendarDays size={16} /> View calendar</button>} />
+    <AnniversaryHero memory={anniversary} copy={getAnniversaryCopy(anniversary)} onOpen={onOpen} onAddMemory={onAddMemory} />
+    <div className="today-lower-grid"><section><SectionHeader eyebrow="Keep adding to it" title="Recently added" action="See timeline" onAction={() => onNavigate('/timeline')} /><div className="memory-grid memory-grid-three">{recent.map((memory) => <MemoryCard key={memory.id} memory={memory} onOpen={onOpen} />)}</div></section><aside className="shuffle-card"><div className="shuffle-heading"><span className="eyebrow">A nudge from the past</span><span className="shuffle-icon"><Sparkles size={17} /></span></div><PhotoStack memories={[shuffle, anniversary, recent[0]]} onOpen={onOpen} /><div className="shuffle-copy"><h3>Something worth remembering</h3><p>Some moments don’t need an anniversary. They just need another look.</p></div><button className="button button-secondary button-full" onClick={() => onOpen(shuffle.id)}>Open a memory <ArrowRight size={15} /></button></aside></div>
+  </div>
 }
 
-export default App;
+function TimelineScreen({ snapshot, onOpen, onAddMemory }) {
+  const [activeType, setActiveType] = useState('all')
+  const [sort, setSort] = useState('newest')
+  const filtered = snapshot.memories.filter((memory) => activeType === 'all' || memory.type === activeType)
+  const ordered = sort === 'newest' ? filtered : filtered.slice().reverse()
+  const grouped = groupMemoriesByYear(ordered)
+  return <div className="screen timeline-screen"><PageHeader eyebrow="The story so far" title="Our timeline" description="A chronological record of the places, rituals, and little milestones that became ours." action={<button className="button button-primary" onClick={onAddMemory}><Plus size={16} /> Add memory</button>} /><div className="timeline-toolbar"><div className="filter-row" aria-label="Filter memories by type"><FilterChip active={activeType === 'all'} onClick={() => setActiveType('all')}>Everything</FilterChip>{['movie', 'place', 'trip', 'activity', 'moment'].map((type) => <FilterChip key={type} active={activeType === type} onClick={() => setActiveType(type)} icon={<TypeIcon type={type} />}>{memoryTypeLabels[type]}</FilterChip>)}</div><label className="select-wrap"><span className="sr-only">Sort timeline</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select><ChevronDown size={15} /></label></div>{grouped.length === 0 ? <EmptyState title="The next chapter is waiting." description="Nothing matches this filter yet. Try another view or add a new memory." action="Add a memory" onAction={onAddMemory} /> : <div className="timeline-groups">{grouped.map((group) => <section className="timeline-year" key={group.year}><div className="timeline-year-label"><span>{group.year}</span><span className="year-rule" /></div><div className="timeline-months">{group.months.map((month) => <div className="timeline-month" key={month.label}><h2>{month.label}</h2><div className="timeline-items">{month.memories.map((memory) => <TimelineMemory key={memory.id} memory={memory} onOpen={onOpen} />)}</div></div>)}</div></section>)}</div>}</div>
+}
+
+function TimelineMemory({ memory, onOpen }) {
+  const date = new Date(`${memory.date}T12:00:00`)
+  return <article className="timeline-memory"><div className="timeline-date"><strong>{String(date.getDate()).padStart(2, '0')}</strong><span>{date.toLocaleDateString('en-US', { weekday: 'short' })}</span></div><div className="timeline-line" /><button className="timeline-memory-card" onClick={() => onOpen(memory.id)}><img src={memory.image} alt={memory.imageAlt} /><div className="timeline-memory-copy"><div className="memory-card-meta"><span>{formatMemoryDate(memory.date)}</span><span className="meta-separator">·</span><span>{memory.location}</span></div><h3>{memory.title}</h3><p>{memory.excerpt}</p><div className="timeline-memory-bottom"><MemoryBadge type={memory.type} /><span>{memory.participants.join(' & ')}</span>{memory.rating && <span className="rating"><Star size={12} fill="currentColor" />{memory.rating}/10</span>}</div></div><span className="timeline-open"><ArrowRight size={17} /></span></button></article>
+}
+
+function ExploreScreen({ snapshot, onOpen, query, onQueryChange }) {
+  const [activeType, setActiveType] = useState('all')
+  const [activeYear, setActiveYear] = useState('all')
+  const matches = snapshot.memories.filter((memory) => {
+    const text = `${memory.title} ${memory.excerpt} ${memory.location} ${memory.tags.join(' ')}`.toLowerCase()
+    return (activeType === 'all' || memory.type === activeType) && (activeYear === 'all' || memory.date.startsWith(activeYear)) && (!query || text.includes(query.toLowerCase()))
+  })
+  const years = [...new Set(snapshot.memories.map((memory) => memory.date.slice(0, 4)))].sort().reverse()
+  return <div className="screen explore-screen"><PageHeader eyebrow="Find it again" title="Explore your memories" description="Search the small details you might otherwise forget." /><SearchField value={query} onChange={onQueryChange} /><div className="explore-filter-line"><div className="filter-row"><FilterChip active={activeType === 'all'} onClick={() => setActiveType('all')}>All memories</FilterChip>{['movie', 'place', 'trip', 'activity'].map((type) => <FilterChip key={type} active={activeType === type} onClick={() => setActiveType(type)} icon={<TypeIcon type={type} />}>{memoryTypeLabels[type]}</FilterChip>)}</div><div className="filter-selects"><label className="small-select"><span>Year</span><select value={activeYear} onChange={(event) => setActiveYear(event.target.value)}><option value="all">Any year</option>{years.map((year) => <option key={year}>{year}</option>)}</select><ChevronDown size={14} /></label><button className="filter-more"><Tag size={14} /> More filters</button></div></div><section className="explore-results"><SectionHeader eyebrow={`${matches.length} memories`} title={query ? `Results for “${query}”` : 'All the good stuff'} /><div className="memory-grid memory-grid-three">{matches.map((memory) => <MemoryCard key={memory.id} memory={memory} onOpen={onOpen} />)}</div>{matches.length === 0 && <EmptyState title="That memory is playing hide and seek." description="Try a different word, year, or filter." action="Clear filters" onAction={() => { onQueryChange(''); setActiveType('all'); setActiveYear('all') }} />}</section><div className="explore-lower"><section className="years-panel"><SectionHeader eyebrow="By year" title="Chapters" /><div className="year-cards">{years.map((year) => <button className="year-card" key={year} onClick={() => setActiveYear(year)}><strong>{year}</strong><span>{snapshot.memories.filter((memory) => memory.date.startsWith(year)).length} memories</span><ArrowRight size={16} /></button>)}</div></section><section className="collections-panel"><SectionHeader eyebrow="Saved groups" title="Collections" action="See all" onAction={() => {}} /><div className="collection-list">{snapshot.collections.map((collection) => <button className="collection-item" key={collection.name}><img src={collection.image} alt="" /><span><strong>{collection.name}</strong><small>{collection.count} memories</small></span><ArrowRight size={15} /></button>)}</div></section></div><section className="watchlist-section"><SectionHeader eyebrow="Still to see" title="Watchlist" action="Browse movies" onAction={() => setActiveType('movie')} /><div className="watchlist-strip">{snapshot.watchlist.map((movie) => <button className="watchlist-item" key={movie.id} onClick={() => onOpen('perfect-film')}><img src={movie.image} alt={movie.imageAlt} /><span><strong>{movie.title}</strong><small>{movie.year} · {movie.addedLabel}</small></span><BookOpen size={15} className="bookmark-icon" /></button>)}</div></section></div>
+}
+
+function CalendarScreen({ snapshot, onOpen, onAddMemory }) {
+  const [selectedDate, setSelectedDate] = useState('2026-09-03')
+  const selectedMemory = snapshot.memories.find((memory) => memory.date === selectedDate)
+  const days = Array.from({ length: 30 }, (_, index) => index + 1)
+  const firstDay = 2
+  return <div className="screen calendar-screen"><PageHeader eyebrow="A year at a glance" title="Calendar" description="The dates are part of the story, too." action={<button className="button button-primary" onClick={onAddMemory}><Plus size={16} /> Add memory</button>} /><div className="calendar-layout"><section className="calendar-main"><div className="calendar-heading"><MonthSwitcher label="September 2026" onPrevious={() => {}} onNext={() => {}} /><div className="calendar-legend"><span><i className="legend-image" />Memory</span><span><i className="legend-today" />Today</span></div></div><div className="calendar-weekdays">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid">{Array.from({ length: firstDay }).map((_, index) => <div className="calendar-cell calendar-cell-blank" key={`blank-${index}`} />)}{days.map((day) => { const date = `2026-09-${String(day).padStart(2, '0')}`; const memory = snapshot.memories.find((item) => item.date === date); return <CalendarCell key={date} day={day} memory={memory} selected={selectedDate === date} onSelect={() => setSelectedDate(date)} /> })}</div></section><aside className="calendar-sidebar"><div className="calendar-side-heading"><div><div className="eyebrow">Selected day</div><h2>{selectedMemory ? 'A day to keep' : 'A quiet day'}</h2></div><button className="icon-button" aria-label="Calendar options"><span className="more-dots">···</span></button></div><CalendarPanel memory={selectedMemory} onOpen={onOpen} /></aside></div></div>
+}
+
+function TandemScreen({ snapshot, onAddMemory }) {
+  return <div className="screen tandem-screen"><div className="tandem-intro"><div><div className="eyebrow">The people in the story</div><h1>Our tandem</h1><p>A private space for the two of you and the life you keep making together.</p></div><button className="button button-primary" onClick={onAddMemory}><Plus size={16} /> Add memory</button></div><section className="tandem-identity-card"><div className="tandem-identity-art"><div className="identity-orbit orbit-one" /><div className="identity-orbit orbit-two" /><AvatarStack members={snapshot.members} size="large" /><span className="identity-sparkle sparkle-one">✦</span><span className="identity-sparkle sparkle-two">✧</span></div><div className="tandem-identity-copy"><span className="eyebrow">Your shared archive</span><h2>Raj <span>&amp;</span> Alex</h2><p>{snapshot.tandem.createdLabel}. Every memory here belongs to both of you.</p><div className="tandem-stats"><div><strong>{snapshot.tandem.memoryCount}</strong><span>memories</span></div><div><strong>{snapshot.tandem.memberCount}</strong><span>members</span></div><div><strong>5</strong><span>years together</span></div></div></div></section><div className="tandem-columns"><section className="tandem-panel"><SectionHeader eyebrow="The two of you" title="Members" action="Invite someone" onAction={() => {}} /><div className="member-list">{snapshot.members.map((member) => <div className="member-row" key={member.id}><span className="member-avatar" style={{ backgroundColor: member.color }}>{member.initials}</span><span><strong>{member.name}</strong><small>{member.role}</small></span><span className="member-status">Active</span></div>)}</div></section><section className="tandem-panel invite-panel"><div className="invite-icon"><Heart size={19} /></div><div><div className="eyebrow">Keep it close</div><h2>Invite someone you trust</h2><p>Tandem is made for the small circle of people who make the memories matter.</p><button className="text-action" onClick={() => {}}>Manage invitations <ArrowRight size={15} /></button></div></section></div><section className="privacy-note"><span className="private-dot" /><div><strong>Private by default</strong><p>Your memories are only visible to the members of this tandem.</p></div><button className="button button-quiet">Privacy settings <ArrowRight size={15} /></button></section></div>
+}
+
+function LoadingScreen() { return <div className="screen loading-screen"><PageHeader eyebrow="Opening your space" title="A moment…" /><div className="memory-grid memory-grid-three"><SkeletonCard /><SkeletonCard /><SkeletonCard /></div></div> }
+function ErrorScreen({ onRetry }) { return <div className="screen error-screen"><EmptyState title="We couldn’t open this page." description="Your memories are safe. Try again in a moment." action="Try again" onAction={onRetry} /></div> }
+
+export default function App() {
+  const [path, setPath] = useState(() => window.location.pathname || '/')
+  const [snapshot, setSnapshot] = useState(null)
+  const [dataError, setDataError] = useState(false)
+  const [launcherOpen, setLauncherOpen] = useState(false)
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get('q') || '')
+  const [notice, setNotice] = useState('')
+  const load = () => { setDataError(false); setSnapshot(null); loadDemoSnapshot().then((state) => { if (state.status === 'error') setDataError(true); else setSnapshot(state.data) }).catch(() => setDataError(true)) }
+  useEffect(() => { load(); const onPopState = () => setPath(window.location.pathname || '/'); window.addEventListener('popstate', onPopState); return () => window.removeEventListener('popstate', onPopState) }, [])
+  useEffect(() => { const handler = (event) => { if (event.key.toLowerCase() === 'n' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) setLauncherOpen(true) }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler) }, [])
+  useEffect(() => { if (!notice) return undefined; const timeout = window.setTimeout(() => setNotice(''), 3200); return () => window.clearTimeout(timeout) }, [notice])
+  const navigate = (nextPath) => { const [pathname, search = ''] = nextPath.split('?'); window.history.pushState({}, '', `${pathname}${search ? `?${search}` : ''}`); setPath(pathname || '/'); if (search) setQuery(new URLSearchParams(search).get('q') || '') }
+  const openMemory = (id) => navigate(`/memory/${id}`)
+  const chooseMemory = (type) => { setLauncherOpen(false); setNotice(`${memoryTypeLabels[type]} memory flow is ready for the next detail step.`) }
+  const detailId = path.startsWith('/memory/') ? path.split('/')[2] : null
+  let screen = null
+  if (snapshot) {
+    if (detailId) screen = <MemoryDetail memory={snapshot.memories.find((memory) => memory.id === detailId) || snapshot.memories[0]} onBack={() => navigate('/timeline')} onAddMemory={() => setLauncherOpen(true)} />
+    else if (path === '/timeline') screen = <TimelineScreen snapshot={snapshot} onOpen={openMemory} onAddMemory={() => setLauncherOpen(true)} />
+    else if (path === '/explore') screen = <ExploreScreen snapshot={snapshot} onOpen={openMemory} query={query} onQueryChange={setQuery} />
+    else if (path === '/calendar') screen = <CalendarScreen snapshot={snapshot} onOpen={openMemory} onAddMemory={() => setLauncherOpen(true)} />
+    else if (path === '/tandem') screen = <TandemScreen snapshot={snapshot} onAddMemory={() => setLauncherOpen(true)} />
+    else screen = <TodayScreen snapshot={snapshot} onOpen={openMemory} onAddMemory={() => setLauncherOpen(true)} onNavigate={navigate} />
+  }
+  return <AppShell path={path} onNavigate={navigate} onAddMemory={() => setLauncherOpen(true)} query={query} onQueryChange={setQuery}><>{dataError ? <ErrorScreen onRetry={load} /> : screen || <LoadingScreen />} {notice && <div className="toast-notice" role="status"><Sparkles size={16} /><span>{notice}</span></div>}<AddMemoryLauncher open={launcherOpen} onClose={() => setLauncherOpen(false)} onChoose={chooseMemory} /></></AppShell>
+}
