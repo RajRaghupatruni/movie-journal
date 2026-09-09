@@ -19,7 +19,16 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     database_url: SecretStr
+    migration_database_url: SecretStr | None = None
+    database_runtime_role: str = "tandem_app"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    frontend_url: str = "http://localhost:5173"
+    google_client_id: str | None = None
+    google_client_secret: SecretStr | None = None
+    google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
+    session_cookie_name: str = "tandem_session"
+    session_ttl_seconds: int = 60 * 60 * 24 * 7
+    oauth_state_ttl_seconds: int = 600
 
     @field_validator("database_url")
     @classmethod
@@ -59,6 +68,20 @@ class Settings(BaseSettings):
                 raise ValueError("CORS origins must be explicit local HTTP origins")
             _ = parsed.port
         return origins
+
+    @field_validator("database_runtime_role")
+    @classmethod
+    def validate_database_runtime_role(cls, role: str) -> str:
+        if not role or not role.replace("_", "").isalnum():
+            raise ValueError("DATABASE_RUNTIME_ROLE must be a simple PostgreSQL role name")
+        return role
+
+    @field_validator("session_ttl_seconds", "oauth_state_ttl_seconds")
+    @classmethod
+    def validate_positive_ttl(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("expiration settings must be positive")
+        return value
 
 
 def load_settings() -> Settings:

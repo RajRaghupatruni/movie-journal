@@ -8,11 +8,16 @@ from app.db.session import create_db_engine
 settings = load_settings()
 configure_logging(settings.log_level)
 target_metadata = Base.metadata
+database_url = (
+    settings.migration_database_url.get_secret_value()
+    if settings.migration_database_url
+    else settings.database_url.get_secret_value()
+)
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url.get_secret_value(),
+        url=database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -23,7 +28,15 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    engine = create_db_engine(settings)
+    if settings.migration_database_url:
+        from pydantic import SecretStr
+
+        migration_settings = settings.model_copy(
+            update={"database_url": SecretStr(database_url), "migration_database_url": None}
+        )
+    else:
+        migration_settings = settings
+    engine = create_db_engine(migration_settings)
     try:
         with engine.connect() as connection:
             context.configure(
