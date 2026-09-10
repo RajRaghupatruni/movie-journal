@@ -11,6 +11,10 @@ from app.db.session import get_db
 from app.main import create_app
 
 
+class FakePsycopgOperationalError(Exception):
+    sqlstate = "08006"
+
+
 def test_health_success(settings):
     app = create_app(settings)
     session = MagicMock()
@@ -61,6 +65,36 @@ def test_unexpected_error_has_safe_response_and_correlated_json_log(settings, ca
     assert completed["request_id"] == response.headers["X-Request-ID"]
     assert completed["status_code"] == 500
     assert request_id.get() is None
+
+
+def test_unexpected_database_error_logs_safe_diagnostics(settings, capsys):
+    app = create_app(settings)
+
+    @app.post("/diagnostic-db-failure")
+    def fail():
+        raise OperationalError(
+            "INSERT INTO private_table VALUES (:private_value)",
+            {"private_value": "person@example.test"},
+            FakePsycopgOperationalError("private-canary"),
+        )
+
+    with TestClient(app) as client:
+        response = client.post("/diagnostic-db-failure")
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Internal server error"}
+    output = capsys.readouterr().out
+    assert "private-canary" not in output
+    assert "person@example.test" not in output
+    assert "private_table" not in output
+    records = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
+    failed = next(record for record in records if record["message"] == "request_failed")
+    assert failed["route"] == "/diagnostic-db-failure"
+    assert failed["error_class"] == "OperationalError"
+    assert failed["dbapi_error_class"] == "FakePsycopgOperationalError"
+    assert failed["sqlstate"] == "08006"
+    assert failed["sqlstate_category"] == "connection_exception"
+    assert failed["connection_invalidated"] is False
 
 
 def test_local_cors_only(settings):

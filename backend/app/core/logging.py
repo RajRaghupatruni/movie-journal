@@ -16,7 +16,18 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
             "request_id": getattr(record, "request_id", request_id.get()),
         }
-        for field in ("method", "route", "status_code", "duration_ms", "error_class", "provider"):
+        for field in (
+            "method",
+            "route",
+            "status_code",
+            "duration_ms",
+            "error_class",
+            "provider",
+            "dbapi_error_class",
+            "sqlstate",
+            "sqlstate_category",
+            "connection_invalidated",
+        ):
             if hasattr(record, field):
                 payload[field] = getattr(record, field)
         # Deliberately omit exception strings, SQL, URLs, request bodies and headers.

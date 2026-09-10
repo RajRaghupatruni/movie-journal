@@ -2,12 +2,24 @@ import logging
 import time
 from uuid import UUID, uuid4
 
+from sqlalchemy.exc import DBAPIError
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.logging import request_id
 
 logger = logging.getLogger(__name__)
+
+SQLSTATE_CATEGORIES = {
+    "08": "connection_exception",
+    "25": "invalid_transaction_state",
+    "40": "transaction_rollback",
+    "53": "insufficient_resources",
+    "57": "operator_intervention",
+    "58": "system_error",
+    "HV": "foreign_data_wrapper_error",
+    "XX": "internal_error",
+}
 
 
 def safe_route(path: str) -> str:
@@ -17,6 +29,28 @@ def safe_route(path: str) -> str:
         if part == "invitations":
             parts[index + 1] = ":reference"
     return "/".join(parts) or "/"
+
+
+def safe_database_error_context(exc: Exception) -> dict[str, object]:
+    """Return non-sensitive database diagnostics for request failure logs."""
+
+    if not isinstance(exc, DBAPIError):
+        return {}
+
+    original = exc.orig
+    sqlstate = getattr(original, "sqlstate", None)
+    if sqlstate is None:
+        diag = getattr(original, "diag", None)
+        sqlstate = getattr(diag, "sqlstate", None)
+
+    context: dict[str, object] = {
+        "dbapi_error_class": type(original).__name__,
+        "connection_invalidated": exc.connection_invalidated,
+    }
+    if isinstance(sqlstate, str) and sqlstate:
+        context["sqlstate"] = sqlstate
+        context["sqlstate_category"] = SQLSTATE_CATEGORIES.get(sqlstate[:2], "database_error")
+    return context
 
 
 class RequestContextMiddleware:
@@ -54,7 +88,12 @@ class RequestContextMiddleware:
             await self.app(scope, receive, send_with_id)
         except Exception as exc:
             logger.error(
-                "request_failed", extra={"route": route, "error_class": type(exc).__name__}
+                "request_failed",
+                extra={
+                    "route": route,
+                    "error_class": type(exc).__name__,
+                    **safe_database_error_context(exc),
+                },
             )
             if not response_started:
                 response = JSONResponse({"detail": "Internal server error"}, status_code=500)
