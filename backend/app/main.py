@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import sessionmaker
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.auth import build_google_oauth
 from app.api.auth import router as auth_router
@@ -26,9 +27,25 @@ from app.db.session import assert_runtime_role, create_db_engine
 from app.services.media_storage import build_object_storage
 from app.web import SPAStaticFiles
 
+OAUTH_SESSION_COOKIE = "tandem_oauth_session"
+
+
+def add_oauth_session_middleware(app: FastAPI, settings: Settings) -> None:
+    """Provide Authlib's transient request.session storage, not application auth."""
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.get_oauth_session_secret(),
+        session_cookie=OAUTH_SESSION_COOKIE,
+        max_age=settings.oauth_state_ttl_seconds,
+        https_only=settings.app_env == "production",
+        same_site="lax",
+        path="/",
+    )
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
+    settings.get_oauth_session_secret()
     configure_logging(settings.log_level)
 
     @asynccontextmanager
@@ -66,6 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_headers=["Content-Type", "X-Request-ID"],
             expose_headers=["X-Request-ID"],
         )
+    add_oauth_session_middleware(app, settings)
     app.add_middleware(SameOriginMiddleware, settings=settings)
     app.add_middleware(InProcessRateLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware, settings=settings)

@@ -157,6 +157,7 @@ APPLICATION_URL=https://tandem.example.com
 GOOGLE_CLIENT_ID=<client-id>
 GOOGLE_CLIENT_SECRET=<client-secret>
 GOOGLE_REDIRECT_URI=https://tandem.example.com/auth/google/callback
+OAUTH_SESSION_SECRET=<dedicated-random-secret>
 TMDB_API_TOKEN=<tmdb-bearer-token>
 GEOAPIFY_API_KEY=<geoapify-key>
 S3_ENDPOINT_URL=https://s3.<b2-region>.backblazeb2.com
@@ -176,6 +177,11 @@ refuses delivery in development/test by default, even if a Resend key is acciden
 Use Render’s secret input for every angle-bracket secret. `MIGRATION_DATABASE_URL` is needed by
 the pre-deploy command and is not used by the web runtime. The service’s runtime calls
 `assert_runtime_role` against `DATABASE_URL` during startup.
+
+`OAUTH_SESSION_SECRET` is a separate randomly generated secret used only by Authlib’s short-lived
+`tandem_oauth_session` cookie. It must not reuse the Google client secret, either database URL
+credential, or any Tandem authentication token. The web service requires it at startup; the
+anniversary cron does not construct the OAuth web middleware and does not need this variable.
 
 4. Add the custom domain, complete DNS, and wait for Render TLS. Keep Render’s automatic HTTPS
    redirect enabled. Do not add an application HTTP→HTTPS redirect that could loop behind TLS

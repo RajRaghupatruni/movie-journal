@@ -27,6 +27,8 @@ services:
         sync: false
       - key: GOOGLE_REDIRECT_URI
         sync: false
+      - key: OAUTH_SESSION_SECRET
+        sync: false
       - key: TMDB_API_TOKEN
         sync: false
       - key: GEOAPIFY_API_KEY

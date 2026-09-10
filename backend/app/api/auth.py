@@ -192,6 +192,10 @@ async def google_callback(
             status_code=status.HTTP_409_CONFLICT, detail="Account conflict"
         ) from None
 
+    # SessionMiddleware is dedicated to Authlib's short-lived OAuth bookkeeping. The
+    # authenticated application session remains the opaque DB-backed tandem_session cookie.
+    request.session.clear()
+
     redirect_target = (
         f"{settings.frontend_url.rstrip('/')}/reactivate" if was_inactive else settings.frontend_url
     )

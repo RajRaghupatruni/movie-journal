@@ -252,7 +252,7 @@ def main() -> None:
     parser.add_argument("--now", help="UTC ISO timestamp for deterministic runs/tests")
     args = parser.parse_args()
     now = as_utc(datetime.fromisoformat(args.now)) if args.now else None
-    result = run_worker(load_settings(), now=now)
+    result = run_worker(load_settings(service_mode="worker"), now=now)
     print(result)
 
 

@@ -134,6 +134,7 @@ CI gates current source with Gitleaks and the Python guard, runs frontend tests/
 | `MIGRATION_DATABASE_URL` | Alembic URL for the dedicated migration role |
 | `CORS_ORIGINS` | JSON array of local HTTP origins; defaults to localhost and 127.0.0.1 port 5173, enabled in development only |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google OIDC client configuration; required only when enabling Google login |
+| `OAUTH_SESSION_SECRET` | Dedicated production-only secret for Authlib's transient OAuth session cookie; never the application auth/session or database secret |
 | `FRONTEND_URL`, `APPLICATION_URL` | Same-origin post-login redirect/application URL; `APPLICATION_URL` is preferred for Render |
 | `API_PROXY_TARGET` | Vite **process environment** override; defaults to http://127.0.0.1:8000, Compose uses http://backend:8000 |
 | `EMAIL_DELIVERY_ENABLED` | Global outbound email capability; defaults to `false` for the v1 launch |
