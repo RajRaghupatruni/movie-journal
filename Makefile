@@ -1,4 +1,4 @@
-.PHONY: dev test test-frontend test-backend lint security compose-config migrate
+.PHONY: dev test test-frontend test-backend lint security compose-config migrate production-image
 
 dev:
 	python scripts/dev_setup.py
@@ -28,3 +28,6 @@ compose-config:
 
 migrate:
 	docker compose --env-file .env.local exec backend alembic upgrade head
+
+production-image:
+	docker build --tag tandem:production .

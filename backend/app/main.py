@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.auth import build_google_oauth
 from app.api.auth import router as auth_router
+from app.api.health import liveness_router
 from app.api.health import router as health_router
 from app.api.integrations import router as integration_router
 from app.api.invitations import router as invitation_router
@@ -16,8 +18,11 @@ from app.api.tandems import router as tandem_router
 from app.core.config import Settings, load_settings
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.core.rate_limit import InProcessRateLimitMiddleware
+from app.core.security import SameOriginMiddleware, SecurityHeadersMiddleware
 from app.db.session import assert_runtime_role, create_db_engine
 from app.services.media_storage import build_object_storage
+from app.web import SPAStaticFiles
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -40,6 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.google_oauth = build_google_oauth(settings)
     app.include_router(health_router, prefix="/api")
+    app.include_router(liveness_router)
     app.include_router(auth_router)
     app.include_router(tandem_router, prefix="/api")
     app.include_router(memory_router, prefix="/api")
@@ -56,5 +62,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_headers=["Content-Type", "X-Request-ID"],
             expose_headers=["X-Request-ID"],
         )
+    app.add_middleware(SameOriginMiddleware, settings=settings)
+    app.add_middleware(InProcessRateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware, settings=settings)
     app.add_middleware(RequestContextMiddleware)
+
+    # The Docker image copies Vite's output to /app/dist. The second candidate keeps the
+    # same app usable from a source checkout after `npm run build` during local verification.
+    candidates = [
+        Path.cwd() / "dist",
+        Path(__file__).resolve().parents[2] / "dist",
+    ]
+    static_dir = next((candidate for candidate in candidates if candidate.is_dir()), None)
+    if settings.app_env == "production" and static_dir is None:
+        raise RuntimeError("Production frontend assets are missing; run the frontend build")
+    if settings.app_env != "test" and static_dir is not None:
+        app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="frontend")
     return app

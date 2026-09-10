@@ -114,10 +114,10 @@ def _email_markup(settings: Settings, years_ago: int) -> tuple[str, str, str]:
         'border:1px solid #e5ddd3">'
         '<p style="color:#803e53;letter-spacing:.16em;text-transform:uppercase;'
         'font:11px sans-serif">tandem</p>'
-        f"<h1 style=\"font-weight:500\">{body}</h1>"
+        f'<h1 style="font-weight:500">{body}</h1>'
         f'<p><a href="{url}" style="color:#803e53">Open Tandem</a></p>'
         '<p style="color:#6f6560;font:13px sans-serif">Private by default. Your memory '
-        'stays in Tandem.</p>'
+        "stays in Tandem.</p>"
         "</div></div>"
     )
     return subject, text_copy, markup
@@ -205,12 +205,10 @@ def deliver_pending(
 
 def run_worker(settings: Settings, *, now: datetime | None = None, adapter=None) -> dict[str, int]:
     effective_now = as_utc(now or datetime.now(UTC))
-    worker_url = (
-        settings.migration_database_url.get_secret_value()
-        if settings.migration_database_url
-        else settings.database_url.get_secret_value()
-    )
-    engine = create_db_engine(settings, worker_url)
+    # The scheduler is an application process, not a schema owner. It uses the same dedicated
+    # non-bypass-RLS role as the web service and opts into only the migration-created worker
+    # policies through the transaction/session setting above.
+    engine = create_db_engine(settings)
     try:
         with Session(engine) as db:
             generate_candidates(db, effective_now)

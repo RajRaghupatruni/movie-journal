@@ -154,6 +154,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiError(0, 'Network error. Check your connection and try again.')
   }
   const body = response.status === 204 ? null : await response.json().catch(() => null)
+  if (response.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tandem:session-expired'))
+  }
   if (!response.ok) throw new ApiError(response.status, body?.detail || 'Request failed')
   return body as T
 }

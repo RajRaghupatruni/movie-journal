@@ -196,17 +196,11 @@ def test_tandem_member_limit_and_acceptance_race(capacity_environment):
             )
             assert invitation.status_code == 201, invitation.text
             with client(sessions[index]) as invitee:
-                accepted = invitee.post(
-                    f"/api/invitations/{invitation.json()['reference']}/accept"
-                )
+                accepted = invitee.post(f"/api/invitations/{invitation.json()['reference']}/accept")
             assert accepted.status_code == 200, accepted.text
 
-        fifth_reference = _seed_pending_invitation(
-            owner_engine, tandem_id, users[0], emails[4]
-        )
-        sixth_reference = _seed_pending_invitation(
-            owner_engine, tandem_id, users[0], emails[5]
-        )
+        fifth_reference = _seed_pending_invitation(owner_engine, tandem_id, users[0], emails[4])
+        sixth_reference = _seed_pending_invitation(owner_engine, tandem_id, users[0], emails[5])
         with client(sessions[4]) as fifth_member:
             accepted = fifth_member.post(f"/api/invitations/{fifth_reference}/accept")
         assert accepted.status_code == 200, accepted.text
@@ -259,9 +253,12 @@ def test_tandem_member_limit_and_acceptance_race(capacity_environment):
             )
             assert invitation.status_code == 201, invitation.text
             with client(sessions[index]) as invitee:
-                assert invitee.post(
-                    f"/api/invitations/{invitation.json()['reference']}/accept"
-                ).status_code == 200
+                assert (
+                    invitee.post(
+                        f"/api/invitations/{invitation.json()['reference']}/accept"
+                    ).status_code
+                    == 200
+                )
 
         references = [
             _seed_pending_invitation(owner_engine, tandem_id, users[0], emails[index])
@@ -282,8 +279,11 @@ def test_tandem_member_limit_and_acceptance_race(capacity_environment):
     assert sorted(response.status_code for response in responses) == [200, 409]
 
     with Session(owner_engine) as db:
-        assert db.scalar(
-            select(func.count())
-            .select_from(TandemMember)
-            .where(TandemMember.tandem_id == tandem_id)
-        ) == MAX_TANDEM_MEMBERS
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(TandemMember)
+                .where(TandemMember.tandem_id == tandem_id)
+            )
+            == MAX_TANDEM_MEMBERS
+        )

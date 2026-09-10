@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from uuid import UUID
 
@@ -35,6 +36,7 @@ from app.services.authorization import TandemAccess, require_tandem_member
 from app.services.media_storage import ObjectStorage
 
 router = APIRouter(prefix="/tandems/{tandem_id}/memories", tags=["memories"])
+logger = logging.getLogger(__name__)
 
 
 def _event(
@@ -145,6 +147,13 @@ def _responses(
             .order_by(MemoryMedia.display_order, MemoryMedia.created_at, MemoryMedia.id)
         ).all()
         for item in media:
+            url = None
+            if storage:
+                try:
+                    url = storage.create_read_url(item.object_key)
+                except Exception:
+                    # A signed-read outage should degrade Timeline/Today thumbnails only.
+                    logger.warning("media_read_url_failed")
             media_by_memory[item.memory_id].append(
                 MemoryMediaResponse(
                     id=item.id,
@@ -157,7 +166,7 @@ def _responses(
                     created_by=item.created_by,
                     created_at=item.created_at,
                     display_order=item.display_order,
-                    url=storage.create_read_url(item.object_key) if storage else None,
+                    url=url,
                 )
             )
     return [

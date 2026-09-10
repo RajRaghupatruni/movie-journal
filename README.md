@@ -4,7 +4,7 @@ Tandem is an invite-only shared-memory application for small groups. PostgreSQL 
 for Tandems, members, invitations, memories, participants, tags, and private media. A Tandem can
 have up to five accepted members in v1.
 
-Read the [repository audit](docs/REPOSITORY_AUDIT.md), [target architecture](docs/TARGET_ARCHITECTURE.md), and [verification results](docs/VERIFICATION.md). Desktop is the target; old root planning documents are historical.
+Read the [repository audit](docs/REPOSITORY_AUDIT.md), [target architecture](docs/TARGET_ARCHITECTURE.md), [production runbook](docs/PRODUCTION_RUNBOOK.md), and [verification results](docs/VERIFICATION.md). Desktop is the target; old root planning documents are historical.
 
 **Manual action:** revoke every previously committed provider credential. Previously committed
 secrets and old deployed artifacts require separate incident cleanup. Legacy providers have no
@@ -25,7 +25,6 @@ The helper creates ignored `.env.local` with separate random migration-admin and
 
 - [Frontend](http://localhost:5173), [API health](http://localhost:8000/api/health), [API docs](http://localhost:8000/docs).
 - PostgreSQL 16: loopback port 5432; migrations use `tandem_migrator` and the API uses the non-bypass-RLS `tandem_app` role by default.
-- Redis 7: loopback port 6379, AOF persistence, currently unused by the backend.
 
 Resolve existing port conflicts before startup. All published ports bind to `127.0.0.1`. Source is copied into images: rebuild after changes. `docker compose --env-file .env.local down` stops the stack and preserves named volumes. Adding `--volumes` erases development data. Changing `.env.local` does not rotate a password in an initialized PostgreSQL role. This Compose file is for local development, not public deployment.
 
@@ -35,7 +34,7 @@ Use Node 22.12+ (current Node 22 LTS preferred), npm and Python 3.12+ (verified 
 
 ```powershell
 python scripts/dev_setup.py
-docker compose --env-file .env.local up -d --wait postgres redis
+  docker compose --env-file .env.local up -d --wait postgres
 npm ci
 npm run dev
 ```
@@ -67,13 +66,12 @@ backend/.venv/Scripts/python -m pytest backend/tests -q
 backend/.venv/Scripts/python -m ruff check backend/app backend/tests backend/alembic
 ```
 
-Build includes strict TypeScript checks; legacy JSX remains JavaScript. `npm run lint` still reports documented pre-existing issues. Container checks:
+Build includes strict TypeScript checks; legacy JSX remains JavaScript. Container checks:
 
 ```powershell
 docker compose --env-file .env.local exec backend python -m pytest -q -p no:cacheprovider
 docker compose --env-file .env.local exec backend alembic current
 docker compose --env-file .env.local exec backend alembic check
-docker compose --env-file .env.local exec redis redis-cli ping
 ```
 
 The integration tests use both `TEST_DATABASE_URL` (non-bypass-RLS runtime role) and `TEST_DATABASE_OWNER_URL` (migration/admin role). Start a clean disposable PostgreSQL test database in its own Compose project; this does not touch the development volume:
@@ -136,9 +134,9 @@ CI gates current source with Gitleaks and the Python guard, runs frontend tests/
 | `MIGRATION_DATABASE_URL` | Alembic URL for the dedicated migration role |
 | `CORS_ORIGINS` | JSON array of local HTTP origins; defaults to localhost and 127.0.0.1 port 5173, enabled in development only |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google OIDC client configuration; required only when enabling Google login |
-| `FRONTEND_URL` | Post-login redirect origin |
+| `FRONTEND_URL`, `APPLICATION_URL` | Same-origin post-login redirect/application URL; `APPLICATION_URL` is preferred for Render |
 | `API_PROXY_TARGET` | Vite **process environment** override; defaults to http://127.0.0.1:8000, Compose uses http://backend:8000 |
-| `REDIS_URL` | Reserved future name, not currently read or required |
+| `RESEND_FROM_EMAIL` | Verified Resend sender; `RESEND_FROM_ADDRESS` remains accepted as a compatibility alias |
 
 No `VITE_*` values are exposed. Google login uses server-side sessions and does not store provider
 access tokens. A fresh Compose volume creates the migration/runtime role split; an existing volume

@@ -24,6 +24,20 @@ needed by tests: tests create users and sessions directly through helpers under 
 Those helpers are not imported by the application and therefore cannot become a production
 authentication bypass.
 
+## Production browser boundary
+
+The production image serves the React build from FastAPI on the same HTTPS origin, so browser
+requests use the HttpOnly session cookie without credentialed cross-origin CORS. State-changing
+production requests require an exact application `Origin` (or same-origin `Referer`); development
+requests may use explicit localhost CORS and tests do not require browser headers. Render’s TLS
+termination is trusted for the public URL; the service does not add a second HTTPS redirect that
+could loop behind the proxy.
+
+Responses receive a CSP, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`,
+`X-Frame-Options: DENY`, `frame-ancestors 'none'`, a restrictive Permissions-Policy, and HSTS in
+production. CSP permits only same-origin scripts/connections plus the specific Google avatar,
+TMDb image, and B2 image hosts needed by the UI.
+
 ## Tandem tenant boundary
 
 `users` are real database identities. A tandem creator receives its only initial `OWNER`

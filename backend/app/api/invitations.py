@@ -67,9 +67,7 @@ def create_invitation(
         raise HTTPException(status_code=422, detail="expires_in_days must be between 1 and 30")
     now = datetime.now(UTC)
     _lock_tandem_capacity(db, access.tandem.id)
-    tandem = db.scalar(
-        select(Tandem).where(Tandem.id == access.tandem.id).with_for_update()
-    )
+    tandem = db.scalar(select(Tandem).where(Tandem.id == access.tandem.id).with_for_update())
     if tandem is None:
         raise HTTPException(status_code=404, detail="Tandem not found")
 

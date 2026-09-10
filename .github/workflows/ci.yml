@@ -47,12 +47,20 @@ jobs:
     env:
       # Non-secret interpolation fixture used only to validate the local Compose file.
       POSTGRES_PASSWORD: ci-compose-password
+      POSTGRES_RUNTIME_PASSWORD: ci-runtime-password
     steps:
       - uses: actions/checkout@v4
       - name: Validate Compose configuration
         run: docker compose config --quiet
       - name: Build application images
         run: docker compose build --quiet
+
+  production-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the single production image
+        run: docker build --tag tandem:ci .
 
   backend:
     runs-on: ubuntu-latest

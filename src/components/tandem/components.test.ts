@@ -2,10 +2,16 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { AddMemoryLauncher, AnniversaryHero, AvatarStack, Sidebar } from './components.jsx'
-import { demoSnapshot, getAnniversaryCopy, groupMemoriesByYear, launcherChoices, navItems } from '../../data/tandemData'
+import { getAnniversaryCopy, groupMemoriesByYear, launcherChoices, navItems } from '../../data/tandemData'
 import { formatParticipantNames } from './presentation'
 
 describe('Tandem presentation contracts', () => {
+  const sampleMemories = [
+    { date: '2023-09-09' },
+    { date: '2024-08-18' },
+    { date: '2026-09-03' },
+  ]
+
   it('exposes the desktop navigation in the intended order', () => {
     expect(navItems.map((item) => item.label)).toEqual(['Today', 'Timeline', 'Explore', 'Calendar'])
     const markup = renderToStaticMarkup(createElement(Sidebar, { path: '/', onNavigate: () => {}, onAddMemory: () => {} }))
@@ -14,7 +20,7 @@ describe('Tandem presentation contracts', () => {
   })
 
   it('supports anniversary and warm fallback copy states', () => {
-    expect(getAnniversaryCopy(demoSnapshot.memories[0]).fallback).toBe(false)
+    expect(getAnniversaryCopy({ title: 'A memory', excerpt: 'A detail worth keeping.' }).fallback).toBe(false)
     expect(getAnniversaryCopy(undefined).title).toContain('Nothing happened on this date')
     const markup = renderToStaticMarkup(createElement(AnniversaryHero, { memory: undefined, copy: getAnniversaryCopy(), onOpen: () => {}, onAddMemory: () => {} }))
     expect(markup).toContain('here’s something worth remembering')
@@ -22,7 +28,7 @@ describe('Tandem presentation contracts', () => {
   })
 
   it('groups timeline memories by year and month', () => {
-    const groups = groupMemoriesByYear(demoSnapshot.memories)
+    const groups = groupMemoriesByYear(sampleMemories)
     expect(groups[0].year).toBe('2026')
     expect(groups[0].months[0].label).toBe('SEPTEMBER')
     expect(groups.some((group) => group.year === '2023')).toBe(true)
