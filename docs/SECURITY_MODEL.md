@@ -92,11 +92,14 @@ identity. This is important with pooled connections: an identity is never stored
 global or connection-persistent setting.
 
 The API runtime role must be a login role with `NOSUPERUSER` and `NOBYPASSRLS`. A separate
-migration/owner role owns schema objects and runs Alembic. Local Compose provisions this split
-on a fresh PostgreSQL volume; an existing volume must be recreated or provisioned explicitly.
-The runtime role receives only application table/function privileges. A superuser or a role with
-`BYPASSRLS` is not a valid production runtime configuration, even though a simple disposable
-test database may use one for migrations.
+migration/owner role owns schema objects and runs Alembic. RLS authorization helpers are owned
+by a third, `NOLOGIN` role with `BYPASSRLS`; this is required because PostgreSQL `FORCE ROW
+LEVEL SECURITY` subjects the table owner to RLS too. The helper role has no login, no role or
+database creation privileges, and receives only the source-table privileges needed by the
+bounded helper functions. Public EXECUTE is revoked and the runtime role receives EXECUTE only
+on those named helpers. Local Compose provisions this split on a fresh PostgreSQL volume; an
+existing or hosted database must provision the helper role and membership for the migration role
+explicitly. The runtime role itself never receives `BYPASSRLS`.
 
 Notification preferences are user-scoped under the same transaction-local identity. The
 anniversary outbox is FORCE-RLS protected and is not granted to the API runtime role. The

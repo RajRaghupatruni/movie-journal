@@ -74,9 +74,12 @@ def capacity_environment(postgres_engines):
     return owner_engine, records, client
 
 
-def _seed_pending_invitation(owner_engine, tandem_id, invited_by, invited_email):
+def _seed_pending_invitation(
+    owner_engine, tandem_id, invited_by, invited_email, *, expires_at=None
+):
     reference = new_secret()
     with Session(owner_engine) as db, db.begin():
+        set_current_user_id(db, str(invited_by))
         db.add(
             Invitation(
                 tandem_id=tandem_id,
@@ -84,7 +87,7 @@ def _seed_pending_invitation(owner_engine, tandem_id, invited_by, invited_email)
                 invited_by=invited_by,
                 token_hash=hash_secret(reference),
                 status="PENDING",
-                expires_at=datetime.now(UTC) + timedelta(days=7),
+                expires_at=expires_at or datetime.now(UTC) + timedelta(days=7),
             )
         )
     return reference
@@ -164,19 +167,13 @@ def test_invites_members_and_isolates_tandem_rows(users_and_clients):
         )
         assert c.post(f"/api/invitations/{revoked_reference}/accept").status_code == 409
 
-        expired = a.post(
-            f"/api/tandems/{tandem_id}/invitations",
-            json={"invited_email": "c@example.test"},
+        expired_reference = _seed_pending_invitation(
+            owner_engine,
+            tandem_id,
+            user_a,
+            "c@example.test",
+            expires_at=datetime.now(UTC) - timedelta(minutes=1),
         )
-        assert expired.status_code == 201
-        expired_reference = expired.json()["reference"]
-        with Session(owner_engine) as db, db.begin():
-            db.execute(
-                update(Invitation)
-                .where(Invitation.token_hash.is_not(None))
-                .where(Invitation.invited_email == "c@example.test")
-                .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
-            )
         expired_response = c.post(f"/api/invitations/{expired_reference}/accept")
         assert expired_response.status_code == 410, expired_response.text
 
@@ -306,11 +303,40 @@ def test_tandem_rls_create_listing_and_direct_sql_boundaries(users_and_clients):
                 """
             )
         ).all()
+        topology = db.execute(
+            text(
+                """
+                SELECT
+                    (SELECT bool_and(pg_get_userbyid(c.relowner) = current_user
+                                     AND c.relrowsecurity AND c.relforcerowsecurity)
+                       FROM pg_class c
+                       JOIN pg_namespace n ON n.oid = c.relnamespace
+                      WHERE n.nspname = 'public'
+                        AND c.relname IN ('tandems', 'tandem_members')) AS protected_tables,
+                    (SELECT rolsuper = false AND rolcanlogin = false
+                            AND rolcreatedb = false AND rolcreaterole = false
+                            AND rolreplication = false AND rolbypassrls = true
+                       FROM pg_roles WHERE rolname = :helper_role) AS helper_role_safe,
+                    (SELECT rolsuper = false AND rolbypassrls = false
+                       FROM pg_roles WHERE rolname = 'tandem_app') AS runtime_role_safe,
+                    (SELECT rolsuper = false AND rolbypassrls = false
+                       FROM pg_roles WHERE rolname = current_user) AS migrator_role_safe
+                """
+            ),
+            {"helper_role": os.getenv("DATABASE_RLS_OWNER_ROLE", "tandem_rls_owner")},
+        ).one()
     assert helpers
-    assert all(row.owner_name != "tandem_app" for row in helpers)
+    assert all(
+        row.owner_name == os.getenv("DATABASE_RLS_OWNER_ROLE", "tandem_rls_owner")
+        for row in helpers
+    )
     assert all(row.prosecdef for row in helpers)
     assert all(row.public_execute is False for row in helpers)
     assert all(row.runtime_execute is True for row in helpers)
+    assert topology.protected_tables is True
+    assert topology.helper_role_safe is True
+    assert topology.runtime_role_safe is True
+    assert topology.migrator_role_safe is True
 
 
 def test_new_user_preferences_return_defaults(users_and_clients):
@@ -427,6 +453,7 @@ def test_tandem_member_limit_and_acceptance_race(capacity_environment):
     assert sorted(response.status_code for response in responses) == [200, 409]
 
     with Session(owner_engine) as db:
+        set_current_user_id(db, str(users[0]))
         assert (
             db.scalar(
                 select(func.count())

@@ -138,6 +138,7 @@ def test_memory_vertical_slice_is_member_scoped_and_versioned(memory_clients):
         assert [item["id"] for item in filtered.json()["items"]] == [memory_id]
 
         with Session(owner_engine) as db:
+            set_current_user_id(db, str(user_a))
             event_types = db.scalars(
                 select(ActivityEvent.event_type)
                 .where(ActivityEvent.entity_id == UUID(memory_id))
@@ -161,6 +162,7 @@ def test_memory_vertical_slice_is_member_scoped_and_versioned(memory_clients):
         )
         assert a.get(f"/api/tandems/{tandem_id}/memories/{memory_id}").status_code == 404
         with Session(owner_engine) as db:
+            set_current_user_id(db, str(user_a))
             assert (
                 db.scalar(
                     select(ActivityEvent.event_type).where(

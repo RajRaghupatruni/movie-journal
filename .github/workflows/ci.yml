@@ -73,12 +73,12 @@ jobs:
         image: postgres:18-bookworm
         env:
           POSTGRES_DB: tandem_test
-          POSTGRES_USER: tandem_migrator
-          POSTGRES_PASSWORD: ci-migration-password
+          POSTGRES_USER: tandem_bootstrap
+          POSTGRES_PASSWORD: ci-bootstrap-password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U tandem_migrator -d tandem_test"
+          --health-cmd "pg_isready -U tandem_bootstrap -d tandem_test"
           --health-interval 5s --health-timeout 5s --health-retries 12
     env:
       # Isolated ephemeral CI database; these are deliberately non-secret fixtures.
@@ -87,6 +87,7 @@ jobs:
       TEST_DATABASE_URL: postgresql+psycopg://tandem_app:ci-runtime-password@127.0.0.1:5432/tandem_test
       TEST_DATABASE_OWNER_URL: postgresql+psycopg://tandem_migrator:ci-migration-password@127.0.0.1:5432/tandem_test
       DATABASE_RUNTIME_ROLE: tandem_app
+      DATABASE_RLS_OWNER_ROLE: tandem_rls_owner
       APP_ENV: test
     defaults:
       run:
@@ -104,8 +105,8 @@ jobs:
         run: python -m pip check
       - name: Provision non-bypass-RLS runtime role
         run: |
-          PGPASSWORD=ci-migration-password psql -h 127.0.0.1 -U tandem_migrator -d tandem_test -v ON_ERROR_STOP=1 \
-            -c "CREATE ROLE tandem_app LOGIN PASSWORD 'ci-runtime-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS"
+          PGPASSWORD=ci-bootstrap-password psql -h 127.0.0.1 -U tandem_bootstrap -d tandem_test -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE tandem_migrator LOGIN PASSWORD 'ci-migration-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; CREATE ROLE tandem_app LOGIN PASSWORD 'ci-runtime-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; CREATE ROLE tandem_rls_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS; GRANT tandem_rls_owner TO tandem_migrator; ALTER DATABASE tandem_test OWNER TO tandem_migrator"
       - name: Ruff lint
         run: python -m ruff check app tests alembic
       - name: Ruff format validation

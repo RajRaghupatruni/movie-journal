@@ -11,6 +11,7 @@ services:
       POSTGRES_MIGRATION_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:-${POSTGRES_PASSWORD:?Set a disposable migration password}}
       POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-tandem_app}
       POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?Set a separate disposable runtime password}
+      POSTGRES_RLS_OWNER_ROLE: ${POSTGRES_RLS_OWNER_ROLE:-tandem_rls_owner}
     ports:
       - "127.0.0.1:${POSTGRES_TEST_PORT:-55432}:5432"
     volumes:

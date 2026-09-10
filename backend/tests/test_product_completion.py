@@ -9,6 +9,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.db.session import set_current_user_id
 from app.main import create_app
 from app.models import AuthSession, Notification, NotificationOutbox, TandemMember, User
 from app.services.auth import hash_secret
@@ -140,14 +141,18 @@ def test_membership_roles_leave_removal_and_last_owner_race(product_environment)
     assert sorted(statuses) == [204, 409]
 
     with Session(owner_engine) as db:
-        assert (
-            db.scalar(
-                select(func.count())
-                .select_from(TandemMember)
-                .where(TandemMember.tandem_id == race_tandem_id, TandemMember.role == "OWNER")
-            )
-            == 1
+        owner_count = db.scalar(
+            text(
+                "SELECT (app.is_tandem_owner(:tandem_id, :alice)::int "
+                "+ app.is_tandem_owner(:tandem_id, :bob)::int)"
+            ),
+            {
+                "tandem_id": str(race_tandem_id),
+                "alice": str(alice_id),
+                "bob": str(bob_id),
+            },
         )
+    assert owner_count == 1
 
 
 def test_invitation_revoke_resend_and_history_use_management_identifiers(product_environment):
@@ -324,6 +329,7 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
         assert second_memory["id"] not in {item["id"] for item in remaining}
 
     with Session(owner_engine) as db, db.begin():
+        set_current_user_id(db, str(alice_id))
         preference = db.execute(select(User).where(User.id == alice_id)).scalar_one()
         db.execute(
             text(
@@ -344,8 +350,9 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
         assert first == 0
         assert db.scalar(select(func.count()).select_from(NotificationOutbox)) == 0
         with Session(owner_engine) as owner_db:
-            assert (
-                owner_db.scalar(
+            with owner_db.begin():
+                set_current_user_id(owner_db, str(alice_id))
+                notification_count = owner_db.scalar(
                     select(func.count())
                     .select_from(Notification)
                     .where(
@@ -354,8 +361,7 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
                         Notification.memory_id == first_memory["id"],
                     )
                 )
-                == 1
-            )
+            assert notification_count == 1
 
         first = generate_candidates(db, now, email_delivery_enabled=True)
         second = generate_candidates(db, now, email_delivery_enabled=True)
@@ -404,8 +410,9 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
     assert len(enabled_adapter.messages) == 1
 
     with Session(owner_engine) as db:
-        assert (
-            db.scalar(
+        with db.begin():
+            set_current_user_id(db, str(alice_id))
+            notification_count = db.scalar(
                 select(func.count())
                 .select_from(Notification)
                 .where(
@@ -414,5 +421,4 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
                     Notification.memory_id == first_memory["id"],
                 )
             )
-            == 1
-        )
+        assert notification_count == 1

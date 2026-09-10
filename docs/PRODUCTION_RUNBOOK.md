@@ -32,6 +32,9 @@ CREATE ROLE tandem_migrator LOGIN PASSWORD '<LONG-RANDOM-MIGRATION-PASSWORD>'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
 CREATE ROLE tandem_app LOGIN PASSWORD '<LONG-RANDOM-RUNTIME-PASSWORD>'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+CREATE ROLE tandem_rls_owner NOLOGIN
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
+GRANT tandem_rls_owner TO tandem_migrator;
 
 -- Replace tandem_db with the actual Neon database name.
 GRANT CONNECT ON DATABASE tandem_db TO tandem_migrator, tandem_app;
@@ -151,6 +154,7 @@ adapter remain in the codebase for a later re-enable.
 APP_ENV=production
 LOG_LEVEL=INFO
 DATABASE_RUNTIME_ROLE=tandem_app
+DATABASE_RLS_OWNER_ROLE=tandem_rls_owner
 DATABASE_URL=postgresql+psycopg://tandem_app:<password>@<neon-host>/<database>?sslmode=require&channel_binding=require
 MIGRATION_DATABASE_URL=postgresql+psycopg://tandem_migrator:<password>@<neon-host>/<database>?sslmode=require&channel_binding=require
 APPLICATION_URL=https://tandem.example.com
@@ -177,6 +181,22 @@ refuses delivery in development/test by default, even if a Resend key is acciden
 Use Render’s secret input for every angle-bracket secret. `MIGRATION_DATABASE_URL` is needed by
 the pre-deploy command and is not used by the web runtime. The service’s runtime calls
 `assert_runtime_role` against `DATABASE_URL` during startup.
+
+Before applying migration `0016_rls_helper_role`, provision the helper owner through a Neon
+administrative connection because `tandem_migrator` intentionally has `NOCREATEROLE`:
+
+The role must be created as follows (the literal `NOLOGIN` is required), and only the migration
+role may be granted membership:
+
+```sql
+CREATE ROLE tandem_rls_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
+GRANT tandem_rls_owner TO tandem_migrator;
+```
+
+Do not grant this role to `tandem_app`, do not give it a password, and do not make either login
+role `BYPASSRLS`. Migration `0016` verifies these attributes, grants the helper only its bounded
+source-table privileges, transfers the named helper functions, and revokes temporary schema
+`CREATE` afterward.
 
 `OAUTH_SESSION_SECRET` is a separate randomly generated secret used only by Authlib’s short-lived
 `tandem_oauth_session` cookie. It must not reuse the Google client secret, either database URL
@@ -230,7 +250,7 @@ alembic current
 alembic check
 ```
 
-The expected head is `0014_email_delivery_default`. Never run migrations from FastAPI lifespan,
+The expected head is `0016_rls_helper_role`. Never run migrations from FastAPI lifespan,
 and never point `MIGRATION_DATABASE_URL` at the runtime role. Schema downgrades are not a routine
 rollback: future migrations may be destructive and application code is not necessarily backward
 compatible. For a bad application image, redeploy the previous image/commit without downgrading.

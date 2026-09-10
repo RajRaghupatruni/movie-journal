@@ -5,7 +5,7 @@ Tandem is a private shared-memory and nostalgia web application for desktop use.
 ```mermaid
 flowchart LR
   UI[React / TypeScript · Vite] --> API[FastAPI · Pydantic]
-  API --> SQL[SQLAlchemy 2 · PostgreSQL 16]
+  API --> SQL[SQLAlchemy 2 · PostgreSQL 18]
   API --> Providers[TMDb · Geoapify]
   API --> Media[Private S3-compatible storage]
   Scheduler[cron / hosted job] --> Worker[bounded anniversary worker]
@@ -25,7 +25,7 @@ flowchart LR
 - The first product slice uses one Tandem-scoped `memories` entity with strict category metadata, participant/tag joins, PostgreSQL full-text search, optimistic versions, append-only activity records, provider snapshots, and private processed media. PostgreSQL is authoritative; the anniversary outbox/worker is included, while Redis, notifications beyond that worker, and realtime updates remain out of scope.
 - On This Day is a backend service over the represented `local_date`. It converts an injected/current instant into each requesting user's IANA timezone, matches earlier memories by local month/day, and applies the explicit Feb 29 rule: Feb 29 memories surface on Feb 29 in leap years and Feb 28 otherwise. The frontend never calculates eligibility.
 - Anniversary email intents use a PostgreSQL transactional outbox retained for a future release. At v1 launch, `EMAIL_DELIVERY_ENABLED=false`: the bounded `python -m app.workers.anniversary` process always generates deduplicated in-app notifications, but creates no new email outbox rows and does not load Resend. When later enabled, it revalidates privacy before sending through Resend and applies three-attempt exponential backoff. A crash after provider acceptance and before the database update can still result in an occasional duplicate; the database idempotency key prevents duplicate queued intents, not provider-side exactly-once delivery.
-- Docker Compose runs a development frontend, backend, and PostgreSQL 16 with loopback-only published ports and a named PostgreSQL volume. Production uses the root multi-stage Dockerfile and no Compose/Redis dependency. Hosted S3-compatible storage is configured externally.
+- Docker Compose runs a development frontend, backend, PostgreSQL 18 and Redis with loopback-only published ports and named persistent volumes. Production uses the root multi-stage Dockerfile and no Compose/Redis dependency. Hosted S3-compatible storage is configured externally.
 - npm remains the frontend manager; Vite remains the build tool. New meaningful boundaries use TypeScript with strict checking; old JSX remains to avoid churn. DOMPurify is shared by every legacy rich-HTML sink and editor insertion. Sanitization is mandatory even for old database content.
 
 ## Later authorization and data ownership

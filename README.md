@@ -24,7 +24,7 @@ docker compose --env-file .env.local ps
 The helper creates ignored `.env.local` with separate random migration-admin and runtime passwords, without reading or overwriting legacy `.env`. Existing `.env.local` is never overwritten. `.env.example` contains names and empty values only; it is a reference, not runnable configuration. Always supply `--env-file .env.local` to Compose.
 
 - [Frontend](http://localhost:5173), [API health](http://localhost:8000/api/health), [API docs](http://localhost:8000/docs).
-- PostgreSQL 16: loopback port 5432; migrations use `tandem_migrator` and the API uses the non-bypass-RLS `tandem_app` role by default.
+- PostgreSQL 18: loopback port 5432; migrations use `tandem_migrator`, the API uses the non-bypass-RLS `tandem_app` role, and RLS authorization helpers use the non-login `tandem_rls_owner` role.
 
 Resolve existing port conflicts before startup. All published ports bind to `127.0.0.1`. Source is copied into images: rebuild after changes. `docker compose --env-file .env.local down` stops the stack and preserves named volumes. Adding `--volumes` erases development data. Changing `.env.local` does not rotate a password in an initialized PostgreSQL role. This Compose file is for local development, not public deployment.
 
@@ -83,6 +83,7 @@ docker compose -p tandem-pg-test -f compose.postgres-test.yaml up -d --wait
 $env:TEST_DATABASE_URL = 'postgresql+psycopg://tandem_app:disposable-runtime-password@127.0.0.1:55432/tandem_test'
 $env:TEST_DATABASE_OWNER_URL = 'postgresql+psycopg://tandem_migrator:disposable-migration-password@127.0.0.1:55432/tandem_test'
 $env:DATABASE_RUNTIME_ROLE = 'tandem_app'
+$env:DATABASE_RLS_OWNER_ROLE = 'tandem_rls_owner'
 python -m pytest backend/tests -q
 ```
 
@@ -127,10 +128,11 @@ CI gates current source with Gitleaks and the Python guard, runs frontend tests/
 | --- | --- |
 | `APP_ENV` | development/test/production; defaults to development |
 | `LOG_LEVEL` | DEBUG/INFO/WARNING/ERROR/CRITICAL; defaults to INFO |
-| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Compose bootstrap; `POSTGRES_USER` is the migration/admin role and its password is required/generated locally |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Compose bootstrap role and password; local setup uses `tandem_bootstrap` so the migration role can remain a non-superuser |
 | `POSTGRES_MIGRATION_USER`, `POSTGRES_MIGRATION_PASSWORD` | Dedicated schema-migration role; normally the same as the Compose bootstrap role; initialized on a fresh PostgreSQL volume |
 | `POSTGRES_RUNTIME_USER`, `POSTGRES_RUNTIME_PASSWORD` | Separate API login; initialized as non-superuser and non-`BYPASSRLS` |
 | `DATABASE_URL`, `DATABASE_RUNTIME_ROLE` | API runtime URL and expected non-superuser/non-`BYPASSRLS` role |
+| `DATABASE_RLS_OWNER_ROLE` | Non-login `BYPASSRLS` role that owns only the bounded RLS authorization helpers |
 | `MIGRATION_DATABASE_URL` | Alembic URL for the dedicated migration role |
 | `CORS_ORIGINS` | JSON array of local HTTP origins; defaults to localhost and 127.0.0.1 port 5173, enabled in development only |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google OIDC client configuration; required only when enabling Google login |
