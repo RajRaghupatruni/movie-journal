@@ -54,7 +54,9 @@ owner creates the invitation, for delivery by a later email service.
 ## PostgreSQL RLS and runtime identity
 
 FastAPI checks are the first authorization layer. PostgreSQL RLS is defense in depth on
-`tandems`, `tandem_members`, and `invitations`. Policies use trusted `SECURITY DEFINER`
+`tandems`, `tandem_members`, `invitations`, and every memory-domain table: `memories`,
+`memory_participants`, `tags`, `memory_tags`, and `activity_events`. Policies use trusted
+`SECURITY DEFINER`
 membership predicates to avoid recursive policy queries and `FORCE ROW LEVEL SECURITY` so
 even table owners are subject to these policies. RLS permits a pending invitee to inspect the
 invited tandem/invitation just enough to complete the accept/decline flow.

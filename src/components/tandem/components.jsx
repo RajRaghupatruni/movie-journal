@@ -9,7 +9,7 @@ import { formatMemoryDate, launcherChoices, memoryTypeLabels, navItems } from '.
 const iconMap = { sun: Sun, timeline: TimelineIcon, search: Search, calendar: CalendarDays }
 const launcherIconMap = { film: Film, pin: Pin, map: Map, sparkles: Sparkles, plus: Plus }
 
-export function Sidebar({ path, onNavigate, onAddMemory }) {
+export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tandem' }) {
   return (
     <aside className="sidebar" aria-label="Primary navigation">
       <div className="brand-lockup">
@@ -27,7 +27,7 @@ export function Sidebar({ path, onNavigate, onAddMemory }) {
       </nav>
       <div className="sidebar-lower">
         <div className="nav-section-label">Your tandem</div>
-        <button className="tandem-mini-switcher" onClick={() => onNavigate('/tandem')}><span className="mini-avatar avatar-berry">R</span><span className="mini-avatar avatar-clay">A</span><span className="tandem-mini-name">Raj &amp; Alex</span><ChevronDown size={15} /></button>
+        <button className="tandem-mini-switcher" onClick={() => onNavigate('/tandem')}><span className="mini-avatar avatar-berry">{tandemName[0] || 'T'}</span><span className="mini-avatar avatar-clay">·</span><span className="tandem-mini-name">{tandemName}</span><ChevronDown size={15} /></button>
         <a href="/tandem" className="nav-item" onClick={(event) => { event.preventDefault(); onNavigate('/tandem') }}><Users size={18} /><span>Our tandem</span></a>
         <div className="sidebar-rule" />
         <button className="sidebar-settings"><Settings2 size={17} /><span>Settings</span></button>
@@ -37,20 +37,20 @@ export function Sidebar({ path, onNavigate, onAddMemory }) {
   )
 }
 
-export function TopBar({ path, onNavigate, query, onQueryChange }) {
+export function TopBar({ path, onNavigate, query, onQueryChange, tandemName = 'Your tandem', currentUserName = 'You' }) {
   const title = path === '/' ? 'Today' : path.slice(1).split('/')[0].replace(/-/g, ' ')
   return <header className="topbar">
-    <div className="topbar-context"><span className="context-kicker">Raj &amp; Alex</span><span className="context-slash">/</span><span className="context-page">{title}</span></div>
+    <div className="topbar-context"><span className="context-kicker">{tandemName}</span><span className="context-slash">/</span><span className="context-page">{title}</span></div>
     <div className="topbar-actions">
       <label className="top-search"><Search size={16} /><span className="sr-only">Search memories</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onNavigate(`/explore${query ? `?q=${encodeURIComponent(query)}` : ''}`) }} placeholder="Search memories" /><span className="search-key">⌘ K</span></label>
-      <button className="top-tandem-switcher" onClick={() => onNavigate('/tandem')}><span className="mini-avatar avatar-berry">R</span><span className="mini-avatar avatar-clay">A</span><span>Raj &amp; Alex</span><ChevronDown size={15} /></button>
-      <button className="top-avatar" aria-label="Open account settings" onClick={() => onNavigate('/tandem')}>RR</button>
+      <button className="top-tandem-switcher" onClick={() => onNavigate('/tandem')}><span className="mini-avatar avatar-berry">{tandemName[0] || 'T'}</span><span className="mini-avatar avatar-clay">·</span><span>{tandemName}</span><ChevronDown size={15} /></button>
+      <button className="top-avatar" aria-label="Open account settings" onClick={() => onNavigate('/tandem')}>{currentUserName.slice(0, 2).toUpperCase()}</button>
     </div>
   </header>
 }
 
-export function AppShell({ children, path, onNavigate, onAddMemory, query, onQueryChange }) {
-  return <div className="app-frame"><Sidebar path={path} onNavigate={onNavigate} onAddMemory={onAddMemory} /><div className="app-main"><TopBar path={path} onNavigate={onNavigate} query={query} onQueryChange={onQueryChange} /><main className="main-canvas">{children}</main></div></div>
+export function AppShell({ children, path, onNavigate, onAddMemory, query, onQueryChange, tandemName, currentUserName }) {
+  return <div className="app-frame"><Sidebar path={path} onNavigate={onNavigate} onAddMemory={onAddMemory} tandemName={tandemName} currentUserName={currentUserName} /><div className="app-main"><TopBar path={path} onNavigate={onNavigate} query={query} onQueryChange={onQueryChange} tandemName={tandemName} currentUserName={currentUserName} /><main className="main-canvas">{children}</main></div></div>
 }
 
 export function PageHeader({ eyebrow, title, description, action, children }) {
@@ -84,8 +84,8 @@ export function MemoryCard({ memory, variant = 'standard', onOpen }) {
 
 export function PhotoStack({ memories, onOpen }) {
   return <div className="photo-stack" aria-label="A stack of shared memories">
-    {memories.slice(0, 3).map((memory, index) => <button key={memory.id} className={`stack-photo stack-photo-${index + 1}`} onClick={() => onOpen(memory.id)} aria-label={`Open ${memory.title}`}><img src={memory.image} alt="" /></button>)}
-    <span className="stack-caption">and 144 more</span>
+    {memories.filter(Boolean).slice(0, 3).map((memory, index) => <button key={memory.id} className={`stack-photo stack-photo-${index + 1}`} onClick={() => onOpen(memory.id)} aria-label={`Open ${memory.title}`}><img src={memory.image} alt="" /></button>)}
+    {memories.length > 3 && <span className="stack-caption">and more</span>}
   </div>
 }
 
@@ -117,8 +117,8 @@ export function AddMemoryLauncher({ open, onClose, onChoose }) {
   return <div className="launcher-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="launcher-dialog" role="dialog" aria-modal="true" aria-labelledby="launcher-title"><div className="launcher-heading"><div><div className="eyebrow">Make a little room for it</div><h2 id="launcher-title">What are we remembering?</h2><p>Start with the shape of the memory. You can fill in the details as you go.</p></div><button className="icon-button" onClick={onClose} aria-label="Close add memory dialog"><X size={19} /></button></div><div className="launcher-grid">{launcherChoices.map((choice, index) => { const Icon = launcherIconMap[choice.icon]; return <button key={choice.type} ref={index === 0 ? firstChoice : undefined} className="launcher-choice" onClick={() => onChoose(choice.type)}><span className={`launcher-choice-icon launcher-${choice.type}`}><Icon size={20} /></span><span><strong>{choice.label}</strong><small>{choice.note}</small></span><ArrowRight size={16} className="launcher-arrow" /></button> })}</div><div className="launcher-footer"><span className="private-dot" />Only people in your tandem can see what you add.</div></section></div>
 }
 
-export function MemoryDetail({ memory, onBack, onAddMemory }) {
-  return <div className="detail-page"><button className="back-link" onClick={onBack}><ArrowLeft size={15} /> Back to {memory.type === 'movie' ? 'explore' : 'timeline'}</button><div className="detail-layout"><div className="detail-media"><img src={memory.image} alt={memory.imageAlt} /><span className="detail-media-label">{memoryTypeLabels[memory.type]} · {new Date(memory.date).getFullYear()}</span></div><article className="detail-copy"><div className="eyebrow">{formatMemoryDate(memory.date)}</div><div className="detail-heading-row"><h1>{memory.title}</h1><button className="icon-button" aria-label="More memory options"><MoreHorizontal size={20} /></button></div><div className="detail-location"><Pin size={16} /> {memory.location}</div><p className="detail-excerpt">{memory.excerpt}</p>{memory.notes && <blockquote>{memory.notes}</blockquote>}<div className="detail-divider" /><div className="detail-meta-grid"><div><span>With</span><strong>{memory.participants.join(' & ')}</strong></div>{memory.rating && <div><span>Rating</span><strong className="detail-rating"><Star size={15} fill="currentColor" /> {memory.rating}/10</strong></div>}<div><span>Added</span><strong>By Raj</strong></div></div><div className="tag-row">{memory.tags.map((tag) => <span className="tag" key={tag}><Tag size={12} />{tag}</span>)}</div><button className="button button-primary detail-add" onClick={onAddMemory}><Plus size={16} /> Add another memory</button></article></div></div>
+export function MemoryDetail({ memory, onBack, onAddMemory, onEdit, onDelete }) {
+  return <div className="detail-page"><button className="back-link" onClick={onBack}><ArrowLeft size={15} /> Back to {memory.type === 'movie' ? 'explore' : 'timeline'}</button><div className="detail-layout"><div className="detail-media"><img src={memory.image} alt={memory.imageAlt} /><span className="detail-media-label">{memoryTypeLabels[memory.type]} · {new Date(`${memory.date}T12:00:00`).getFullYear()}</span></div><article className="detail-copy"><div className="eyebrow">{formatMemoryDate(memory.date)}</div><div className="detail-heading-row"><h1>{memory.title}</h1><div className="detail-actions"><button className="button button-quiet" onClick={onEdit}>Edit</button><button className="button button-quiet button-danger" onClick={onDelete}>Delete</button></div></div>{memory.location && <div className="detail-location"><Pin size={16} /> {memory.location}</div>}<p className="detail-excerpt">{memory.excerpt}</p>{memory.notes && <blockquote>{memory.notes}</blockquote>}<div className="detail-divider" /><div className="detail-meta-grid"><div><span>With</span><strong>{memory.participants.length ? memory.participants.join(' & ') : 'Just us'}</strong></div>{memory.rating && <div><span>Rating</span><strong className="detail-rating"><Star size={15} fill="currentColor" /> {memory.rating}/10</strong></div>}<div><span>Added</span><strong>{memory.createdByName || 'A tandem member'}</strong></div></div><div className="tag-row">{memory.tags.map((tag) => <span className="tag" key={tag}><Tag size={12} />{tag}</span>)}</div><button className="button button-primary detail-add" onClick={onAddMemory}><Plus size={16} /> Add another memory</button></article></div></div>
 }
 
 export function MonthSwitcher({ label, onPrevious, onNext }) {
