@@ -46,7 +46,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Non-secret interpolation fixture used only to validate the local Compose file.
+      POSTGRES_DB: tandem_ci
+      POSTGRES_MIGRATION_USER: tandem_migrator
       POSTGRES_PASSWORD: ci-compose-password
+      POSTGRES_MIGRATION_PASSWORD: ci-migration-password
+      POSTGRES_RUNTIME_USER: tandem_app
       POSTGRES_RUNTIME_PASSWORD: ci-runtime-password
     steps:
       - uses: actions/checkout@v4
