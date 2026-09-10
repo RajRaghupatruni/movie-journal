@@ -53,19 +53,20 @@ services:
       start_period: 10s
 
   postgres:
-    image: postgres:16-bookworm
+    image: postgres:18.6-bookworm
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-tandem}
-      POSTGRES_USER: ${POSTGRES_MIGRATION_USER:-tandem_migrator}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a new local POSTGRES_PASSWORD in .env.local}
+      POSTGRES_USER: ${POSTGRES_USER:-tandem_bootstrap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a new local bootstrap password in .env.local}
       POSTGRES_MIGRATION_USER: ${POSTGRES_MIGRATION_USER:-tandem_migrator}
-      POSTGRES_MIGRATION_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:-${POSTGRES_PASSWORD:?Set a new local POSTGRES_PASSWORD in .env.local}}
+      POSTGRES_MIGRATION_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:?Set a separate local migration password in .env.local}
       POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-tandem_app}
       POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?Set a new local POSTGRES_RUNTIME_PASSWORD in .env.local}
+      POSTGRES_RLS_OWNER_ROLE: ${POSTGRES_RLS_OWNER_ROLE:-tandem_rls_owner}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]

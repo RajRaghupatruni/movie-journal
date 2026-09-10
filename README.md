@@ -77,7 +77,8 @@ docker compose --env-file .env.local exec backend alembic check
 The integration tests use both `TEST_DATABASE_URL` (non-bypass-RLS runtime role) and `TEST_DATABASE_OWNER_URL` (migration/admin role). Start a clean disposable PostgreSQL 18 test database in its own Compose project; this does not touch the development volume:
 
 ```powershell
-$env:POSTGRES_PASSWORD = 'disposable-migration-password'
+$env:POSTGRES_PASSWORD = 'disposable-bootstrap-password'
+$env:POSTGRES_MIGRATION_PASSWORD = 'disposable-migration-password'
 $env:POSTGRES_RUNTIME_PASSWORD = 'disposable-runtime-password'
 docker compose -p tandem-pg-test -f compose.postgres-test.yaml up -d --wait
 $env:TEST_DATABASE_URL = 'postgresql+psycopg://tandem_app:disposable-runtime-password@127.0.0.1:55432/tandem_test'

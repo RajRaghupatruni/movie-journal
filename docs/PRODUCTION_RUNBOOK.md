@@ -182,7 +182,7 @@ Use Render’s secret input for every angle-bracket secret. `MIGRATION_DATABASE_
 the pre-deploy command and is not used by the web runtime. The service’s runtime calls
 `assert_runtime_role` against `DATABASE_URL` during startup.
 
-Before applying migration `0016_rls_helper_role`, provision the helper owner through a Neon
+Before applying migration `0015_rls_helper_role`, provision the helper owner through a Neon
 administrative connection because `tandem_migrator` intentionally has `NOCREATEROLE`:
 
 The role must be created as follows (the literal `NOLOGIN` is required), and only the migration
@@ -194,7 +194,7 @@ GRANT tandem_rls_owner TO tandem_migrator;
 ```
 
 Do not grant this role to `tandem_app`, do not give it a password, and do not make either login
-role `BYPASSRLS`. Migration `0016` verifies these attributes, grants the helper only its bounded
+role `BYPASSRLS`. Migration `0015` verifies these attributes, grants the helper only its bounded
 source-table privileges, transfers the named helper functions, and revokes temporary schema
 `CREATE` afterward.
 
@@ -250,7 +250,7 @@ alembic current
 alembic check
 ```
 
-The expected head is `0016_rls_helper_role`. Never run migrations from FastAPI lifespan,
+The expected head is `0015_rls_helper_role`. Never run migrations from FastAPI lifespan,
 and never point `MIGRATION_DATABASE_URL` at the runtime role. Schema downgrades are not a routine
 rollback: future migrations may be destructive and application code is not necessarily backward
 compatible. For a bad application image, redeploy the previous image/commit without downgrading.

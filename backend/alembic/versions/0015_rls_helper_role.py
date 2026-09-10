@@ -13,8 +13,8 @@ import re
 
 from alembic import op
 
-revision = "0016_rls_helper_role"
-down_revision = "0015_rls_helper_ownership"
+revision = "0015_rls_helper_role"
+down_revision = "0014_email_delivery_default"
 branch_labels = None
 depends_on = None
 
