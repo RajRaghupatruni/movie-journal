@@ -6,6 +6,7 @@ from uuid import UUID
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -87,6 +88,11 @@ def _seed_pending_invitation(owner_engine, tandem_id, invited_by, invited_email)
             )
         )
     return reference
+
+
+def _assert_not_statement_too_complex(exc: DBAPIError) -> None:
+    sqlstate = getattr(exc.orig, "sqlstate", None)
+    assert sqlstate != "54001", "RLS policy recursion raised SQLSTATE 54001"
 
 
 def test_invites_members_and_isolates_tandem_rows(users_and_clients):
@@ -188,6 +194,136 @@ def test_invites_members_and_isolates_tandem_rows(users_and_clients):
             )
             is False
         )
+
+
+def test_tandem_rls_create_listing_and_direct_sql_boundaries(users_and_clients):
+    runtime_engine, owner_engine, (user_a, user_b, user_c), (client_a, client_b, client_c) = (
+        users_and_clients
+    )
+    with client_a as a, client_b as b, client_c as c:
+        try:
+            created = a.post("/api/tandems", json={"name": "PG18 RLS Tandem", "timezone": "UTC"})
+            assert created.status_code == 201, created.text
+            tandem_id = UUID(created.json()["id"])
+            assert any(item["id"] == str(tandem_id) for item in a.get("/api/me/tandems").json())
+            assert b.get(f"/api/tandems/{tandem_id}").status_code == 404
+            assert c.get(f"/api/tandems/{tandem_id}").status_code == 404
+        except DBAPIError as exc:
+            _assert_not_statement_too_complex(exc)
+            raise
+
+        with Session(runtime_engine) as db, db.begin():
+            set_current_user_id(db, str(user_a))
+            assert db.scalar(select(Tandem).where(Tandem.id == tandem_id)) is not None
+            member_rows = db.execute(
+                select(TandemMember.user_id, TandemMember.role).where(
+                    TandemMember.tandem_id == tandem_id
+                )
+            ).all()
+            assert member_rows == [(user_a, "OWNER")]
+            assert (
+                db.scalar(
+                    text("SELECT app.is_tandem_member(:tandem_id, :user_id)"),
+                    {"tandem_id": str(tandem_id), "user_id": str(user_a)},
+                )
+                is True
+            )
+
+        with Session(runtime_engine) as db, db.begin():
+            set_current_user_id(db, str(user_b))
+            assert db.scalar(select(Tandem).where(Tandem.id == tandem_id)) is None
+            assert (
+                db.scalars(select(TandemMember).where(TandemMember.tandem_id == tandem_id)).all()
+                == []
+            )
+            renamed = db.execute(
+                update(Tandem).where(Tandem.id == tandem_id).values(name="B should not write")
+            )
+            assert renamed.rowcount == 0
+
+        with pytest.raises(DBAPIError) as error:
+            with Session(runtime_engine) as db, db.begin():
+                set_current_user_id(db, str(user_c))
+                db.execute(text("SET LOCAL row_security = off"))
+                db.scalars(select(TandemMember).where(TandemMember.tandem_id == tandem_id)).all()
+        assert getattr(error.value.orig, "sqlstate", None) != "54001"
+
+        invitation = a.post(
+            f"/api/tandems/{tandem_id}/invitations",
+            json={"invited_email": "b@example.test"},
+        )
+        assert invitation.status_code == 201, invitation.text
+        accepted = b.post(f"/api/invitations/{invitation.json()['reference']}/accept")
+        assert accepted.status_code == 200, accepted.text
+        assert b.get(f"/api/tandems/{tandem_id}").status_code == 200
+        assert b.patch(f"/api/tandems/{tandem_id}", json={"name": "Nope"}).status_code == 403
+        assert c.get(f"/api/tandems/{tandem_id}").status_code == 404
+        assert c.patch(f"/api/tandems/{tandem_id}", json={"name": "Nope"}).status_code == 404
+
+        with Session(runtime_engine) as db, db.begin():
+            set_current_user_id(db, str(user_b))
+            assert db.scalar(select(Tandem).where(Tandem.id == tandem_id)) is not None
+            seen_members = {
+                row.user_id
+                for row in db.scalars(
+                    select(TandemMember).where(TandemMember.tandem_id == tandem_id)
+                ).all()
+            }
+            assert seen_members == {user_a, user_b}
+
+        with Session(runtime_engine) as db, db.begin():
+            set_current_user_id(db, str(user_c))
+            assert db.scalar(select(Tandem).where(Tandem.id == tandem_id)) is None
+            assert (
+                db.scalars(select(TandemMember).where(TandemMember.tandem_id == tandem_id)).all()
+                == []
+            )
+
+    with Session(owner_engine) as db:
+        helpers = db.execute(
+            text(
+                """
+                SELECT p.proname, pg_get_userbyid(p.proowner) AS owner_name, p.prosecdef,
+                       EXISTS (
+                           SELECT 1
+                           FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) acl
+                           WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+                       ) AS public_execute,
+                       has_function_privilege('tandem_app', p.oid, 'EXECUTE') AS runtime_execute
+                FROM pg_proc p
+                JOIN pg_namespace n ON n.oid = p.pronamespace
+                WHERE n.nspname = 'app'
+                  AND p.proname IN (
+                      'is_tandem_member',
+                      'is_tandem_owner',
+                      'is_tandem_creator',
+                      'user_email_matches',
+                      'can_join_via_invitation',
+                      'can_view_tandem',
+                      'can_leave_tandem',
+                      'tandem_member_count'
+                  )
+                """
+            )
+        ).all()
+    assert helpers
+    assert all(row.owner_name != "tandem_app" for row in helpers)
+    assert all(row.prosecdef for row in helpers)
+    assert all(row.public_execute is False for row in helpers)
+    assert all(row.runtime_execute is True for row in helpers)
+
+
+def test_new_user_preferences_return_defaults(users_and_clients):
+    _, _, _, (client_a, _, _) = users_and_clients
+    with client_a as a:
+        response = a.get("/api/me/preferences")
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "timezone": "UTC",
+        "anniversary_notifications_enabled": True,
+        "anniversary_email_enabled": False,
+        "notification_hour": 9,
+    }
 
 
 def test_tandem_member_limit_and_acceptance_race(capacity_environment):

@@ -74,7 +74,7 @@ docker compose --env-file .env.local exec backend alembic current
 docker compose --env-file .env.local exec backend alembic check
 ```
 
-The integration tests use both `TEST_DATABASE_URL` (non-bypass-RLS runtime role) and `TEST_DATABASE_OWNER_URL` (migration/admin role). Start a clean disposable PostgreSQL test database in its own Compose project; this does not touch the development volume:
+The integration tests use both `TEST_DATABASE_URL` (non-bypass-RLS runtime role) and `TEST_DATABASE_OWNER_URL` (migration/admin role). Start a clean disposable PostgreSQL 18 test database in its own Compose project; this does not touch the development volume:
 
 ```powershell
 $env:POSTGRES_PASSWORD = 'disposable-migration-password'

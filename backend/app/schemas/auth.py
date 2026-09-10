@@ -24,6 +24,8 @@ class StrictRequestModel(BaseModel):
 
 
 class NotificationPreferenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     timezone: str
     anniversary_notifications_enabled: bool
     anniversary_email_enabled: bool
