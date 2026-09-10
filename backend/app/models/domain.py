@@ -33,10 +33,15 @@ class User(TimestampMixin, Base):
     __tablename__ = "users"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
-    google_subject: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+    google_subject: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    email: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true", default=True
+    )
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class UserNotificationPreference(TimestampMixin, Base):
@@ -66,8 +71,8 @@ class Tandem(TimestampMixin, Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    created_by: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    created_by: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     timezone: Mapped[str] = mapped_column(String(64), nullable=False)
 
@@ -104,14 +109,14 @@ class Invitation(Base):
         Uuid, ForeignKey("tandems.id", ondelete="CASCADE"), nullable=False
     )
     invited_email: Mapped[str] = mapped_column(String(320), nullable=False)
-    invited_by: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    invited_by: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     accepted_by: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -121,6 +126,10 @@ class Invitation(Base):
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
+
+    reactivation_only: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false", default=False
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
@@ -143,6 +152,54 @@ class OAuthState(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index("ix_notifications_user_unread", "user_id", "read_at", "created_at"),
+        Index("ix_notifications_user_created", "user_id", "created_at"),
+        UniqueConstraint("dedupe_key", name="uq_notifications_dedupe_key"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    type: Mapped[str] = mapped_column(String(48), nullable=False)
+    actor_user_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    tandem_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("tandems.id", ondelete="CASCADE"), nullable=True
+    )
+    memory_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("memories.id", ondelete="CASCADE"), nullable=True
+    )
+    invitation_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("invitations.id", ondelete="CASCADE"), nullable=True
+    )
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    dedupe_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class StorageCleanupFailure(Base):
+    __tablename__ = "storage_cleanup_failures"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    object_key: Mapped[str] = mapped_column(String(512), unique=True, nullable=False)
+    scope: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class NotificationOutbox(Base):

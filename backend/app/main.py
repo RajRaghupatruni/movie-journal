@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.auth import build_google_oauth
 from app.api.auth import router as auth_router
+from app.api.global_views import router as global_view_router
 from app.api.health import liveness_router
 from app.api.health import router as health_router
 from app.api.integrations import router as integration_router
@@ -14,6 +15,7 @@ from app.api.invitations import router as invitation_router
 from app.api.media import router as media_router
 from app.api.memories import router as memory_router
 from app.api.nostalgia import router as nostalgia_router
+from app.api.notifications import router as notification_router
 from app.api.tandems import router as tandem_router
 from app.core.config import Settings, load_settings
 from app.core.logging import configure_logging
@@ -50,6 +52,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tandem_router, prefix="/api")
     app.include_router(memory_router, prefix="/api")
     app.include_router(nostalgia_router, prefix="/api")
+    app.include_router(notification_router)
+    app.include_router(global_view_router)
     app.include_router(integration_router, prefix="/api")
     app.include_router(media_router, prefix="/api")
     app.include_router(invitation_router)

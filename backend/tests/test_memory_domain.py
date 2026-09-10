@@ -91,6 +91,13 @@ def test_memory_vertical_slice_is_member_scoped_and_versioned(memory_clients):
             f"/api/tandems/{tandem_id}/memories/{memory_id}",
             json={"expected_version": 1, "notes": "We stopped and took the long way home."},
         )
+        assert updated.status_code == 403, updated.text
+        assert updated.json()["detail"] == "You can only edit memories you created"
+
+        updated = a.patch(
+            f"/api/tandems/{tandem_id}/memories/{memory_id}",
+            json={"expected_version": 1, "notes": "We stopped and took the long way home."},
+        )
         assert updated.status_code == 200, updated.text
         assert updated.json()["version"] == 2
         assert a.get(f"/api/tandems/{tandem_id}/memories/{memory_id}").json()["version"] == 2
@@ -142,6 +149,12 @@ def test_memory_vertical_slice_is_member_scoped_and_versioned(memory_clients):
 
         assert (
             b.delete(
+                f"/api/tandems/{tandem_id}/memories/{memory_id}", params={"expected_version": 2}
+            ).status_code
+            == 403
+        )
+        assert (
+            a.delete(
                 f"/api/tandems/{tandem_id}/memories/{memory_id}", params={"expected_version": 2}
             ).status_code
             == 204

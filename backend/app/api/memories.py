@@ -17,6 +17,7 @@ from app.models import (
     MemoryParticipant,
     MemoryTag,
     Tag,
+    Tandem,
     TandemMember,
     User,
 )
@@ -34,6 +35,7 @@ from app.schemas.memory import (
 from app.services.auth import get_current_user
 from app.services.authorization import TandemAccess, require_tandem_member
 from app.services.media_storage import ObjectStorage
+from app.services.notifications import create_notification
 
 router = APIRouter(prefix="/tandems/{tandem_id}/memories", tags=["memories"])
 logger = logging.getLogger(__name__)
@@ -169,10 +171,20 @@ def _responses(
                     url=url,
                 )
             )
+    tandem_names = (
+        dict(
+            db.execute(
+                select(Tandem.id, Tandem.name).where(Tandem.id.in_({m.tandem_id for m in memories}))
+            ).all()
+        )
+        if memories
+        else {}
+    )
     return [
         MemoryResponse(
             id=memory.id,
             tandem_id=memory.tandem_id,
+            tandem_name=tandem_names.get(memory.tandem_id),
             category=memory.category,
             title=memory.title,
             local_date=memory.local_date,
@@ -281,6 +293,23 @@ def create_memory(
             entity_id=memory.id,
             event_type="TagAdded",
             payload={"tag": tag},
+        )
+    recipients = db.scalars(
+        select(TandemMember.user_id).where(
+            TandemMember.tandem_id == access.tandem.id,
+            TandemMember.user_id != current_user.id,
+        )
+    ).all()
+    for recipient_id in recipients:
+        create_notification(
+            db,
+            user_id=recipient_id,
+            notification_type="memory_added",
+            actor_user_id=current_user.id,
+            tandem_id=access.tandem.id,
+            memory_id=memory.id,
+            payload={"memory_title": memory.title, "tandem_name": access.tandem.name},
+            dedupe_key=f"memory-added:{memory.id}:{recipient_id}",
         )
     db.commit()
     set_current_user_id(db, str(current_user.id))
@@ -396,6 +425,8 @@ def update_memory(
     db: Session = Depends(get_db),
 ) -> MemoryResponse:
     memory = _one(db, access.tandem.id, memory_id)
+    if access.member.role != "OWNER" and memory.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit memories you created")
     changes = payload.model_dump(exclude_unset=True)
     if payload.category is not None and payload.category.value != memory.category:
         raise HTTPException(status_code=422, detail="memory category cannot be changed")
@@ -546,6 +577,8 @@ def delete_memory(
     db: Session = Depends(get_db),
 ) -> None:
     memory = _one(db, access.tandem.id, memory_id)
+    if access.member.role != "OWNER" and memory.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete memories you created")
     if expected_version is not None and memory.version != expected_version:
         raise HTTPException(
             status_code=409,

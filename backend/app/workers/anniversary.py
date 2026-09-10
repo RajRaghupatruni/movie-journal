@@ -21,6 +21,7 @@ from app.models import (
     User,
     UserNotificationPreference,
 )
+from app.services.notifications import create_notification
 from app.services.on_this_day import find_anniversaries, is_currently_eligible
 
 logger = logging.getLogger(__name__)
@@ -58,11 +59,7 @@ def generate_candidates(db: Session, now: datetime) -> int:
         preference = db.scalar(
             select(UserNotificationPreference).where(UserNotificationPreference.user_id == user_id)
         )
-        if (
-            preference is None
-            or not preference.anniversary_notifications_enabled
-            or not preference.anniversary_email_enabled
-        ):
+        if preference is None or not preference.anniversary_notifications_enabled:
             continue
         if now.astimezone(ZoneInfo(preference.timezone)).hour < preference.notification_hour:
             continue
@@ -70,6 +67,24 @@ def generate_candidates(db: Session, now: datetime) -> int:
             db, user_id=user_id, tandem_id=tandem_id, now=now, timezone=preference.timezone
         )
         for match in matches:
+            create_notification(
+                db,
+                user_id=user_id,
+                notification_type="on_this_day",
+                tandem_id=tandem_id,
+                memory_id=match.memory.id,
+                payload={
+                    "years_ago": match.years_ago,
+                    "original_date": match.original_date.isoformat(),
+                    "anniversary_date": match.anniversary_date.isoformat(),
+                },
+                dedupe_key=(
+                    f"anniversary:{tandem_id}:{user_id}:{match.memory.id}:"
+                    f"{match.anniversary_date.year}:in_app"
+                ),
+            )
+            if not preference.anniversary_email_enabled:
+                continue
             key = idempotency_key_for(
                 tandem_id, user_id, match.memory.id, match.anniversary_date.year
             )
