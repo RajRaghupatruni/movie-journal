@@ -326,7 +326,7 @@ def revoke_invitation(
     db: Session = Depends(get_db),
 ) -> InvitationSummary:
     set_current_user_id(db, str(current_user.id))
-    invitation = _find_invitation(db, safe_reference, lock=True)
+    invitation = _find_owner_invitation(db, safe_reference, lock=True)
     if invitation.tandem_id != access.tandem.id:
         raise HTTPException(status_code=404, detail="Invitation not found")
     now = datetime.now(UTC)

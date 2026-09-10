@@ -68,6 +68,22 @@ def upgrade():
     Notification.__table__.create(op.get_bind())
     StorageCleanupFailure.__table__.create(op.get_bind())
     op.execute(Path(__file__).with_name("0012_product_up.sql").read_text())
+    # Promote/demote lock the target membership with SELECT ... FOR UPDATE. PostgreSQL
+    # evaluates the UPDATE policy for that lock, so keep role changes owner-only.
+    op.execute("DROP POLICY IF EXISTS tandem_members_update ON tandem_members")
+    op.execute(
+        """
+        CREATE POLICY tandems_delete ON tandems FOR DELETE
+            USING (app.is_tandem_owner(id, app.current_user_id()));
+
+        CREATE POLICY tandem_members_update ON tandem_members FOR UPDATE
+            USING (app.is_tandem_owner(tandem_id, app.current_user_id()))
+            WITH CHECK (app.is_tandem_owner(tandem_id, app.current_user_id()));
+
+        CREATE POLICY user_notification_preferences_delete ON user_notification_preferences
+            FOR DELETE USING (user_id = app.current_user_id())
+        """
+    )
     role = _role()
     op.execute(
         f"""
@@ -76,6 +92,14 @@ def upgrade():
             IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
                 EXECUTE format(
                     'GRANT SELECT, UPDATE, DELETE ON notifications TO %I',
+                    '{role}'
+                );
+                EXECUTE format(
+                    'GRANT SELECT, INSERT, UPDATE ON notification_outbox TO %I',
+                    '{role}'
+                );
+                EXECUTE format(
+                    'GRANT DELETE ON user_notification_preferences TO %I',
                     '{role}'
                 );
                 EXECUTE format(
@@ -96,6 +120,8 @@ def upgrade():
                 );
             ELSE
                 EXECUTE 'GRANT SELECT, UPDATE, DELETE ON notifications TO ' || quote_ident(current_user);
+                EXECUTE 'GRANT SELECT, INSERT, UPDATE ON notification_outbox TO ' || quote_ident(current_user);
+                EXECUTE 'GRANT DELETE ON user_notification_preferences TO ' || quote_ident(current_user);
                 EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON storage_cleanup_failures TO ' || quote_ident(current_user);
             END IF;
         END

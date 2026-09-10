@@ -12,3 +12,6 @@ DROP POLICY IF EXISTS notifications_service_insert ON notifications;
 DROP POLICY IF EXISTS notifications_delete ON notifications;
 DROP POLICY IF EXISTS notifications_update ON notifications;
 DROP POLICY IF EXISTS notifications_select ON notifications;
+DROP POLICY IF EXISTS tandem_members_update ON tandem_members;
+DROP POLICY IF EXISTS tandems_delete ON tandems;
+DROP POLICY IF EXISTS user_notification_preferences_delete ON user_notification_preferences;
