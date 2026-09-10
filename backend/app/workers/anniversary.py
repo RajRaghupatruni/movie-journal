@@ -91,8 +91,9 @@ def generate_candidates(db: Session, now: datetime) -> int:
                     idempotency_key=key,
                 )
                 .on_conflict_do_nothing(index_elements=["idempotency_key"])
+                .returning(NotificationOutbox.id)
             )
-            created += result.rowcount or 0
+            created += int(result.scalar_one_or_none() is not None)
     db.commit()
     return created
 

@@ -48,7 +48,7 @@ def upgrade() -> None:
         sa.CheckConstraint("notification_hour BETWEEN 0 AND 23", name="notification_hour_range"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name="pk_user_notification_preferences"),
-        sa.UniqueConstraint("user_id", name="uq_user_notification_preferences_user"),
+        sa.UniqueConstraint("user_id", name="uq_user_notification_preferences_user_id"),
     )
     op.create_table(
         "notification_outbox",
@@ -77,7 +77,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["tandem_id"], ["tandems.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["memory_id"], ["memories.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name="pk_notification_outbox"),
-        sa.UniqueConstraint("idempotency_key", name="uq_notification_outbox_idempotency"),
+        sa.UniqueConstraint("idempotency_key", name="uq_notification_outbox_idempotency_key"),
         sa.UniqueConstraint(
             "tandem_id",
             "user_id",
