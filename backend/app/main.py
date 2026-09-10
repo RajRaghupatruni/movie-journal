@@ -17,6 +17,7 @@ from app.api.media import router as media_router
 from app.api.memories import router as memory_router
 from app.api.nostalgia import router as nostalgia_router
 from app.api.notifications import router as notification_router
+from app.api.rediscovery import router as rediscovery_router
 from app.api.tandems import router as tandem_router
 from app.core.config import Settings, load_settings
 from app.core.logging import configure_logging
@@ -70,6 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(memory_router, prefix="/api")
     app.include_router(nostalgia_router, prefix="/api")
     app.include_router(notification_router)
+    app.include_router(rediscovery_router)
     app.include_router(global_view_router)
     app.include_router(integration_router, prefix="/api")
     app.include_router(media_router, prefix="/api")

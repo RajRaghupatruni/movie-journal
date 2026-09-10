@@ -1,4 +1,5 @@
 import logging
+import re
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 
@@ -16,6 +17,7 @@ from app.models import (
     Invitation,
     Memory,
     MemoryMedia,
+    MemoryParticipant,
     OAuthState,
     Tandem,
     TandemMember,
@@ -82,10 +84,15 @@ async def google_login(request: Request, db: Session = Depends(get_db)):
         )
 
     raw_state = new_secret()
+    invitation_ref = request.query_params.get("invite", "")
+    return_path = None
+    if invitation_ref and re.fullmatch(r"[A-Za-z0-9_-]{20,128}", invitation_ref):
+        return_path = f"/?invite={invitation_ref}"
     db.add(
         OAuthState(
             state_hash=hash_secret(raw_state),
             expires_at=datetime.now(UTC) + timedelta(seconds=settings.oauth_state_ttl_seconds),
+            return_path=return_path,
         )
     )
     db.commit()
@@ -197,7 +204,9 @@ async def google_callback(
     request.session.clear()
 
     redirect_target = (
-        f"{settings.frontend_url.rstrip('/')}/reactivate" if was_inactive else settings.frontend_url
+        f"{settings.frontend_url.rstrip('/')}/reactivate"
+        if was_inactive
+        else f"{settings.frontend_url.rstrip('/')}{oauth_state.return_path or '/'}"
     )
     response = RedirectResponse(redirect_target, status_code=status.HTTP_303_SEE_OTHER)
     _set_cookie(
@@ -270,7 +279,6 @@ def deactivate_account(
     db.execute(
         text("SELECT app.clear_user_delivery_state(:user_id)"), {"user_id": str(current_user.id)}
     )
-    db.execute(delete(TandemMember).where(TandemMember.user_id == current_user.id))
     current_user.is_active = False
     current_user.deactivated_at = datetime.now(UTC)
     db.commit()
@@ -341,6 +349,11 @@ def delete_account(
     db.execute(update(Tandem).where(Tandem.created_by == user_id).values(created_by=None))
     db.execute(update(Memory).where(Memory.created_by == user_id).values(created_by=None))
     db.execute(update(MemoryMedia).where(MemoryMedia.created_by == user_id).values(created_by=None))
+    db.execute(
+        update(MemoryParticipant)
+        .where(MemoryParticipant.user_id == user_id)
+        .values(participant_display_name="Former member")
+    )
     db.execute(update(Invitation).where(Invitation.invited_by == user_id).values(invited_by=None))
     db.execute(update(Invitation).where(Invitation.accepted_by == user_id).values(accepted_by=None))
     db.execute(text("SELECT app.clear_user_delivery_state(:user_id)"), {"user_id": str(user_id)})

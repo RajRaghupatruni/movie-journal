@@ -110,6 +110,7 @@ class MemoryWrite(BaseModel):
     category: MemoryCategory
     title: str = Field(min_length=1, max_length=180)
     local_date: date
+    end_date: date | None = None
     occurred_at: datetime | None = None
     timezone: str = Field(min_length=1, max_length=64)
     notes: str | None = Field(default=None, max_length=10000)
@@ -156,6 +157,19 @@ class MemoryWrite(BaseModel):
             raise ValueError("occurred_at must include a timezone")
         parsed = _metadata_adapters[self.category].validate_python(self.metadata)
         self.metadata = parsed.model_dump(mode="json", exclude_none=True)
+        if self.category is MemoryCategory.TRIP:
+            metadata_start = self.metadata.get("start_date")
+            metadata_end = self.metadata.get("end_date")
+            if metadata_start and date.fromisoformat(metadata_start) != self.local_date:
+                raise ValueError("trip start_date must match local_date")
+            if self.end_date is not None:
+                if self.end_date < self.local_date:
+                    raise ValueError("end_date must be on or after local_date")
+                self.metadata["end_date"] = self.end_date.isoformat()
+            elif metadata_end:
+                self.end_date = date.fromisoformat(metadata_end)
+        elif self.end_date is not None:
+            raise ValueError("end_date is only supported for trip memories")
         return self
 
 
@@ -170,6 +184,7 @@ class MemoryPatch(BaseModel):
     category: MemoryCategory | None = None
     title: str | None = Field(default=None, min_length=1, max_length=180)
     local_date: date | None = None
+    end_date: date | None = None
     occurred_at: datetime | None = None
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     notes: str | None = Field(default=None, max_length=10000)
@@ -220,6 +235,33 @@ class MemberSummary(BaseModel):
     display_name: str
 
 
+class ReflectionResponse(BaseModel):
+    id: UUID
+    user_id: UUID | None
+    display_name: str
+    rating: int | None = None
+    note: str | None = None
+    reaction: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ReflectionWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rating: int | None = Field(default=None, ge=1, le=10)
+    note: str | None = Field(default=None, max_length=10000)
+    reaction: Literal["loved", "nostalgic", "funny", "favorite"] | None = None
+
+    @field_validator("note")
+    @classmethod
+    def clean_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+
 class MemoryMediaResponse(BaseModel):
     id: UUID
     memory_id: UUID
@@ -241,6 +283,7 @@ class MemoryResponse(BaseModel):
     category: MemoryCategory
     title: str
     local_date: date
+    end_date: date | None = None
     occurred_at: datetime | None
     timezone: str
     notes: str | None
@@ -255,6 +298,18 @@ class MemoryResponse(BaseModel):
     participants: list[MemberSummary]
     tags: list[str]
     media: list[MemoryMediaResponse] = Field(default_factory=list)
+    reflections: list[ReflectionResponse] = Field(default_factory=list)
+    my_reflection: ReflectionResponse | None = None
+    deleted_at: datetime | None = None
+    deletion_expires_at: datetime | None = None
+
+
+class DuplicateMemoryResponse(BaseModel):
+    id: UUID
+    title: str
+    local_date: date
+    category: MemoryCategory
+    tandem_id: UUID
 
 
 class MemoryListResponse(BaseModel):

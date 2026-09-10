@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.db.session import set_current_user_id
 from app.main import create_app
-from app.models import AuthSession, Notification, NotificationOutbox, TandemMember, User
+from app.models import AuthSession, Notification, NotificationOutbox, User
 from app.services.auth import hash_secret
 from app.workers.anniversary import generate_candidates, run_worker
 from tests.helpers import provision_test_user
@@ -208,7 +208,6 @@ def test_account_lifecycle_is_explicit_and_preserves_shared_memory_anonymity(pro
         assert alice.get("/api/me").status_code == 401
 
     with Session(owner_engine) as db, db.begin():
-        assert db.scalar(select(TandemMember).where(TandemMember.user_id == alice_id)) is None
         db.add(
             AuthSession(
                 user_id=alice_id,
@@ -224,8 +223,8 @@ def test_account_lifecycle_is_explicit_and_preserves_shared_memory_anonymity(pro
         assert alice.get("/api/me").status_code == 401
         assert alice.post("/api/me/reactivate").status_code == 200
         assert alice.get("/api/me").status_code == 200
-        assert alice.get("/api/me/tandems").json() == []
-        assert alice.get(f"/api/tandems/{shared_tandem_id}").status_code == 404
+        assert shared_tandem_id in {item["id"] for item in alice.get("/api/me/tandems").json()}
+        assert alice.get(f"/api/tandems/{shared_tandem_id}").status_code == 200
 
         solo_tandem_id = _create_tandem(alice, "Solo Blocker")
         assert (
@@ -352,25 +351,28 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
             {"user_id": str(preference.id)},
         )
 
+    now = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
     with Session(runtime_engine) as db:
-        now = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
+        db.execute(text("SELECT set_config('app.worker_mode', 'true', false)"))
+        before_outbox = db.scalar(select(func.count()).select_from(NotificationOutbox))
         first = generate_candidates(db, now, email_delivery_enabled=False)
         assert first == 0
-        assert db.scalar(select(func.count()).select_from(NotificationOutbox)) == 0
-        with Session(owner_engine) as owner_db:
-            with owner_db.begin():
-                set_current_user_id(owner_db, str(alice_id))
-                notification_count = owner_db.scalar(
-                    select(func.count())
-                    .select_from(Notification)
-                    .where(
-                        Notification.user_id == alice_id,
-                        Notification.type == "on_this_day",
-                        Notification.memory_id == first_memory["id"],
-                    )
+        assert db.scalar(select(func.count()).select_from(NotificationOutbox)) == before_outbox
+    with Session(owner_engine) as owner_db:
+        with owner_db.begin():
+            set_current_user_id(owner_db, str(alice_id))
+            notification_count = owner_db.scalar(
+                select(func.count())
+                .select_from(Notification)
+                .where(
+                    Notification.user_id == alice_id,
+                    Notification.type == "on_this_day",
+                    Notification.memory_id == first_memory["id"],
                 )
-            assert notification_count == 1
+            )
+        assert notification_count == 1
 
+    with Session(runtime_engine) as db:
         first = generate_candidates(db, now, email_delivery_enabled=True)
         second = generate_candidates(db, now, email_delivery_enabled=True)
         assert first == 1

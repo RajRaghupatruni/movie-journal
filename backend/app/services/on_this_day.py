@@ -1,4 +1,5 @@
 """Timezone-aware anniversary selection for Tandem's On This Day surface."""
+# ruff: noqa: E501
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Memory, TandemMember, UserNotificationPreference
+from app.models import Memory, TandemMember, TandemUserPreference, UserNotificationPreference
 
 
 @dataclass(frozen=True)
@@ -82,10 +83,20 @@ def find_anniversaries(
     memories = db.scalars(
         select(Memory)
         .join(TandemMember, TandemMember.tandem_id == Memory.tandem_id)
+        .outerjoin(
+            TandemUserPreference,
+            (TandemUserPreference.tandem_id == Memory.tandem_id)
+            & (TandemUserPreference.user_id == user_id),
+        )
         .where(
             Memory.tandem_id == tandem_id,
             TandemMember.user_id == user_id,
             Memory.nostalgia_eligible.is_(True),
+            Memory.deleted_at.is_(None),
+            (
+                TandemUserPreference.resurfacing_enabled.is_(True)
+                | TandemUserPreference.id.is_(None)
+            ),
             Memory.local_date < date(today.year, 1, 1),
         )
         .order_by(Memory.local_date.desc(), Memory.id)

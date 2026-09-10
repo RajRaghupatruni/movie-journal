@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -66,6 +66,8 @@ class InvitationSummary(BaseModel):
     expires_at: datetime
     inviter_name: str | None = None
     created_at: datetime | None = None
+    memory_count: int = 0
+    earliest_memory_date: date | None = None
 
 
 class InvitationCreate(StrictRequestModel):
@@ -76,6 +78,17 @@ class InvitationCreate(StrictRequestModel):
 class InvitationCreated(InvitationSummary):
     # This is the one-time raw URL reference. token_hash is never exposed.
     reference: str
+
+
+class TandemPreferenceResponse(BaseModel):
+    tandem_id: UUID
+    resurfacing_enabled: bool
+    routine_notifications_enabled: bool
+
+
+class TandemPreferencePatch(StrictRequestModel):
+    resurfacing_enabled: bool | None = None
+    routine_notifications_enabled: bool | None = None
 
 
 class NotificationResponse(BaseModel):

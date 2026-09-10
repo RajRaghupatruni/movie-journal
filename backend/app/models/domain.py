@@ -1,4 +1,6 @@
 from datetime import datetime
+
+# ruff: noqa: E501
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -149,8 +151,28 @@ class OAuthState(Base):
     state_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    return_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class TandemUserPreference(TimestampMixin, Base):
+    __tablename__ = "tandem_user_preferences"
+    __table_args__ = (UniqueConstraint("tandem_id", "user_id", name="uq_tandem_user_preferences"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    tandem_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("tandems.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    resurfacing_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true", default=True
+    )
+    routine_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true", default=True
     )
 
 

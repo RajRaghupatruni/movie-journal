@@ -1,4 +1,6 @@
 from datetime import UTC, datetime
+
+# ruff: noqa: E501
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -7,11 +9,20 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db, set_current_user_id
-from app.models import MemoryMedia, StorageCleanupFailure, Tandem, TandemMember, User
+from app.models import (
+    MemoryMedia,
+    StorageCleanupFailure,
+    Tandem,
+    TandemMember,
+    TandemUserPreference,
+    User,
+)
 from app.schemas.auth import (
     AccountAction,
     MemberResponse,
     TandemCreate,
+    TandemPreferencePatch,
+    TandemPreferenceResponse,
     TandemResponse,
     TandemUpdate,
 )
@@ -59,6 +70,46 @@ def create_tandem(
 @router.get("/{tandem_id}", response_model=TandemResponse)
 def get_tandem(access: TandemAccess = Depends(require_tandem_member)) -> TandemResponse:
     return TandemResponse.model_validate(access.tandem)
+
+
+def _tandem_preference(db: Session, tandem_id: UUID, user_id: UUID) -> TandemUserPreference:
+    preference = db.scalar(
+        select(TandemUserPreference).where(
+            TandemUserPreference.tandem_id == tandem_id,
+            TandemUserPreference.user_id == user_id,
+        )
+    )
+    if preference is None:
+        preference = TandemUserPreference(tandem_id=tandem_id, user_id=user_id)
+        db.add(preference)
+        db.flush()
+    return preference
+
+
+@router.get("/{tandem_id}/preferences", response_model=TandemPreferenceResponse)
+def get_tandem_preferences(
+    access: TandemAccess = Depends(require_tandem_member),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TandemPreferenceResponse:
+    preference = _tandem_preference(db, access.tandem.id, current_user.id)
+    db.commit()
+    return TandemPreferenceResponse.model_validate(preference)
+
+
+@router.patch("/{tandem_id}/preferences", response_model=TandemPreferenceResponse)
+def update_tandem_preferences(
+    payload: TandemPreferencePatch,
+    access: TandemAccess = Depends(require_tandem_member),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TandemPreferenceResponse:
+    preference = _tandem_preference(db, access.tandem.id, current_user.id)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(preference, key, value)
+    db.commit()
+    db.refresh(preference)
+    return TandemPreferenceResponse.model_validate(preference)
 
 
 @router.delete("/{tandem_id}", status_code=status.HTTP_204_NO_CONTENT)
