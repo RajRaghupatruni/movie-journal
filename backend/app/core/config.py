@@ -29,6 +29,34 @@ class Settings(BaseSettings):
     session_cookie_name: str = "tandem_session"
     session_ttl_seconds: int = 60 * 60 * 24 * 7
     oauth_state_ttl_seconds: int = 600
+    tmdb_api_token: SecretStr | None = None
+    tmdb_base_url: str = "https://api.themoviedb.org/3"
+    tmdb_image_base_url: str = "https://image.tmdb.org/t/p"
+    geoapify_api_key: SecretStr | None = None
+    geoapify_base_url: str = "https://api.geoapify.com/v1"
+    provider_timeout_seconds: float = 5.0
+    s3_endpoint_url: str | None = None
+    s3_bucket: str | None = None
+    s3_access_key_id: SecretStr | None = None
+    s3_secret_access_key: SecretStr | None = None
+    s3_region: str | None = None
+    media_max_bytes: int = 10 * 1024 * 1024
+    media_max_dimension: int = 2400
+    media_max_count: int = 10
+
+    @field_validator("provider_timeout_seconds")
+    @classmethod
+    def validate_provider_timeout(cls, value: float) -> float:
+        if value <= 0 or value > 30:
+            raise ValueError("PROVIDER_TIMEOUT_SECONDS must be between 0 and 30")
+        return value
+
+    @field_validator("media_max_bytes", "media_max_dimension", "media_max_count")
+    @classmethod
+    def validate_media_limits(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("media limits must be positive")
+        return value
 
     @field_validator("database_url")
     @classmethod

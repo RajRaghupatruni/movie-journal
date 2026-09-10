@@ -7,13 +7,16 @@ from sqlalchemy.orm import sessionmaker
 from app.api.auth import build_google_oauth
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.integrations import router as integration_router
 from app.api.invitations import router as invitation_router
+from app.api.media import router as media_router
 from app.api.memories import router as memory_router
 from app.api.tandems import router as tandem_router
 from app.core.config import Settings, load_settings
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.db.session import assert_runtime_role, create_db_engine
+from app.services.media_storage import build_object_storage
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -26,6 +29,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.app_env == "production":
             assert_runtime_role(engine, settings.database_runtime_role)
         app.state.session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+        app.state.object_storage = build_object_storage(settings)
         try:
             yield
         finally:
@@ -38,6 +42,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(tandem_router, prefix="/api")
     app.include_router(memory_router, prefix="/api")
+    app.include_router(integration_router, prefix="/api")
+    app.include_router(media_router, prefix="/api")
     app.include_router(invitation_router)
     if settings.app_env == "development" and settings.cors_origins:
         app.add_middleware(

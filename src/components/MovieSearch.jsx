@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AddMovieModal from "./AddMovieModal";
 import AddToWatchlistButton from "./AddToWatchlistButton";
+// DEPRECATED MIGRATION REFERENCE: the active Keepsake form uses the backend TMDb picker.
 import { legacyProviderRequest, legacyProviderSearchEnabled } from "../lib/legacyProviders";
 
 function MovieSearch({ onAdd }) {

@@ -44,6 +44,47 @@ export interface ApiMemory {
   metadata: Record<string, unknown>
   participants: Array<Pick<ApiMember, 'user_id' | 'display_name' | 'email' | 'avatar_url'>>
   tags: string[]
+  media: ApiMedia[]
+}
+
+export interface ApiMedia {
+  id: string
+  memory_id: string
+  content_type: string
+  byte_size: number
+  width: number
+  height: number
+  original_filename: string | null
+  created_by: string
+  created_at: string
+  display_order: number
+  url: string | null
+}
+
+export interface ApiMovieSearchResult {
+  tmdb_id: number
+  title: string
+  original_title: string | null
+  release_date: string | null
+  release_year: number | null
+  poster_url: string | null
+  backdrop_url: string | null
+  overview: string | null
+  genres: string[]
+  runtime_minutes: number | null
+}
+
+export interface ApiPlaceSearchResult {
+  provider: 'geoapify'
+  provider_place_id: string
+  name: string
+  formatted_address: string | null
+  city: string | null
+  region: string | null
+  country: string | null
+  latitude: number | null
+  longitude: number | null
+  category: string | null
 }
 
 export interface MemoryListParams {
@@ -85,7 +126,8 @@ export class ApiError extends Error {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response
   try {
-    response = await fetch(path, { ...options, credentials: 'include', headers: { 'Content-Type': 'application/json', ...options.headers } })
+    const isMultipart = typeof FormData !== 'undefined' && options.body instanceof FormData
+    response = await fetch(path, { ...options, credentials: 'include', headers: { ...(isMultipart ? {} : { 'Content-Type': 'application/json' }), ...options.headers } })
   } catch {
     throw new ApiError(0, 'Network error. Check your connection and try again.')
   }
@@ -107,4 +149,14 @@ export const tandemApi = {
   createMemory: (tandemId: string, input: MemoryInput) => request<ApiMemory>(`/api/tandems/${tandemId}/memories`, { method: 'POST', body: JSON.stringify(input) }),
   updateMemory: (tandemId: string, memoryId: string, input: MemoryPatchInput) => request<ApiMemory>(`/api/tandems/${tandemId}/memories/${memoryId}`, { method: 'PATCH', body: JSON.stringify(input) }),
   deleteMemory: (tandemId: string, memoryId: string, expectedVersion?: number) => request<void>(`/api/tandems/${tandemId}/memories/${memoryId}${expectedVersion ? `?expected_version=${expectedVersion}` : ''}`, { method: 'DELETE' }),
+  searchMovies: (query: string) => request<{ items: ApiMovieSearchResult[] }>(`/api/integrations/movies/search?q=${encodeURIComponent(query)}`),
+  movie: (tmdbId: number) => request<ApiMovieSearchResult>(`/api/integrations/movies/${tmdbId}`),
+  searchPlaces: (query: string) => request<{ items: ApiPlaceSearchResult[] }>(`/api/integrations/places/search?q=${encodeURIComponent(query)}`),
+  memoryMedia: (tandemId: string, memoryId: string) => request<ApiMedia[]>(`/api/tandems/${tandemId}/memories/${memoryId}/media`),
+  uploadMemoryMedia: (tandemId: string, memoryId: string, files: File[]) => {
+    const body = new FormData()
+    files.forEach((file) => body.append('files', file, file.name))
+    return request<ApiMedia[]>(`/api/tandems/${tandemId}/memories/${memoryId}/media`, { method: 'POST', body })
+  },
+  deleteMemoryMedia: (tandemId: string, memoryId: string, mediaId: string) => request<void>(`/api/tandems/${tandemId}/memories/${memoryId}/media/${mediaId}`, { method: 'DELETE' }),
 }

@@ -1,4 +1,4 @@
-// components/FoursquareSearch.jsx
+// DEPRECATED MIGRATION REFERENCE: Geoapify-backed ProviderSearch is the active flow.
 import React, { useState, useEffect } from "react";
 import { legacyProviderRequest, legacyProviderSearchEnabled } from "../lib/legacyProviders";
 

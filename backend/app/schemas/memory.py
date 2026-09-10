@@ -35,6 +35,9 @@ class MovieMetadata(StrictMetadata):
     release_date: date | None = None
     poster_url: HttpUrl | None = None
     runtime_minutes: int | None = Field(default=None, ge=1, le=1000)
+    original_title: str | None = Field(default=None, max_length=180)
+    backdrop_url: HttpUrl | None = None
+    overview: str | None = Field(default=None, max_length=5000)
     genres: list[str] = Field(default_factory=list, max_length=12)
 
     @field_validator("genres")
@@ -56,6 +59,7 @@ class PlaceMetadata(StrictMetadata):
     country: str | None = Field(default=None, max_length=120)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
+    category: str | None = Field(default=None, max_length=120)
 
 
 class TripMetadata(StrictMetadata):
@@ -214,6 +218,20 @@ class MemberSummary(BaseModel):
     avatar_url: str | None
 
 
+class MemoryMediaResponse(BaseModel):
+    id: UUID
+    memory_id: UUID
+    content_type: str
+    byte_size: int
+    width: int
+    height: int
+    original_filename: str | None
+    created_by: UUID
+    created_at: datetime
+    display_order: int
+    url: str | None = None
+
+
 class MemoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -235,6 +253,7 @@ class MemoryResponse(BaseModel):
     metadata: dict[str, Any]
     participants: list[MemberSummary]
     tags: list[str]
+    media: list[MemoryMediaResponse] = Field(default_factory=list)
 
 
 class MemoryListResponse(BaseModel):
