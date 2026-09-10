@@ -1,9 +1,10 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from app.core.logging import request_id
@@ -11,6 +12,7 @@ from app.db.session import get_db, set_current_user_id
 from app.models import (
     ActivityEvent,
     Memory,
+    MemoryMedia,
     MemoryParticipant,
     MemoryTag,
     Tag,
@@ -22,6 +24,7 @@ from app.schemas.memory import (
     MemoryCategory,
     MemoryCreate,
     MemoryListResponse,
+    MemoryMediaResponse,
     MemoryPatch,
     MemoryResponse,
     MemoryWrite,
@@ -29,6 +32,7 @@ from app.schemas.memory import (
 )
 from app.services.auth import get_current_user
 from app.services.authorization import TandemAccess, require_tandem_member
+from app.services.media_storage import ObjectStorage
 
 router = APIRouter(prefix="/tandems/{tandem_id}/memories", tags=["memories"])
 
@@ -126,8 +130,36 @@ def _load_related(
     return related
 
 
-def _responses(db: Session, memories: list[Memory]) -> list[MemoryResponse]:
+def _responses(
+    db: Session, memories: list[Memory], storage: ObjectStorage | None = None
+) -> list[MemoryResponse]:
     related = _load_related(db, memories)
+    memory_ids = [memory.id for memory in memories]
+    media_by_memory: dict[UUID, list[MemoryMediaResponse]] = {
+        memory_id: [] for memory_id in memory_ids
+    }
+    if memory_ids:
+        media = db.scalars(
+            select(MemoryMedia)
+            .where(MemoryMedia.memory_id.in_(memory_ids))
+            .order_by(MemoryMedia.display_order, MemoryMedia.created_at, MemoryMedia.id)
+        ).all()
+        for item in media:
+            media_by_memory[item.memory_id].append(
+                MemoryMediaResponse(
+                    id=item.id,
+                    memory_id=item.memory_id,
+                    content_type=item.content_type,
+                    byte_size=item.byte_size,
+                    width=item.width,
+                    height=item.height,
+                    original_filename=item.original_filename,
+                    created_by=item.created_by,
+                    created_at=item.created_at,
+                    display_order=item.display_order,
+                    url=storage.create_read_url(item.object_key) if storage else None,
+                )
+            )
     return [
         MemoryResponse(
             id=memory.id,
@@ -148,6 +180,7 @@ def _responses(db: Session, memories: list[Memory]) -> list[MemoryResponse]:
             metadata=memory.memory_metadata,
             participants=related[memory.id][0],
             tags=related[memory.id][1],
+            media=media_by_memory[memory.id],
         )
         for memory in memories
     ]
@@ -174,6 +207,7 @@ def _apply_write(memory: Memory, payload: MemoryWrite) -> None:
 
 @router.post("", response_model=MemoryResponse, status_code=status.HTTP_201_CREATED)
 def create_memory(
+    request: Request,
     payload: MemoryCreate,
     access: TandemAccess = Depends(require_tandem_member),
     current_user: User = Depends(get_current_user),
@@ -196,7 +230,17 @@ def create_memory(
         nostalgia_eligible=payload.nostalgia_eligible,
     )
     db.add(memory)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "A movie memory for this title already exists on that date; use a different "
+                "date for a repeat watch"
+            ),
+        ) from None
     db.add_all(
         [
             MemoryParticipant(memory_id=memory.id, tandem_id=access.tandem.id, user_id=user_id)
@@ -234,11 +278,12 @@ def create_memory(
     db.commit()
     set_current_user_id(db, str(current_user.id))
     db.refresh(memory)
-    return _responses(db, [memory])[0]
+    return _responses(db, [memory], getattr(request.app.state, "object_storage", None))[0]
 
 
 @router.get("", response_model=MemoryListResponse)
 def list_memories(
+    request: Request,
     tandem_id: UUID,
     access: TandemAccess = Depends(require_tandem_member),
     db: Session = Depends(get_db),
@@ -313,7 +358,7 @@ def list_memories(
     has_more = len(memories) > limit
     memories = memories[:limit]
     return MemoryListResponse(
-        items=_responses(db, memories),
+        items=_responses(db, memories, getattr(request.app.state, "object_storage", None)),
         offset=offset,
         limit=limit,
         next_offset=offset + limit if has_more else None,
@@ -322,15 +367,21 @@ def list_memories(
 
 @router.get("/{memory_id}", response_model=MemoryResponse)
 def get_memory(
+    request: Request,
     memory_id: UUID,
     access: TandemAccess = Depends(require_tandem_member),
     db: Session = Depends(get_db),
 ) -> MemoryResponse:
-    return _responses(db, [_one(db, access.tandem.id, memory_id)])[0]
+    return _responses(
+        db,
+        [_one(db, access.tandem.id, memory_id)],
+        getattr(request.app.state, "object_storage", None),
+    )[0]
 
 
 @router.patch("/{memory_id}", response_model=MemoryResponse)
 def update_memory(
+    request: Request,
     memory_id: UUID,
     payload: MemoryPatch,
     access: TandemAccess = Depends(require_tandem_member),
@@ -475,11 +526,12 @@ def update_memory(
     set_current_user_id(db, str(current_user.id))
     db.refresh(memory)
     updated = _one(db, access.tandem.id, memory.id)
-    return _responses(db, [updated])[0]
+    return _responses(db, [updated], getattr(request.app.state, "object_storage", None))[0]
 
 
 @router.delete("/{memory_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_memory(
+    request: Request,
     memory_id: UUID,
     expected_version: int | None = Query(default=None, ge=1),
     access: TandemAccess = Depends(require_tandem_member),
@@ -487,6 +539,30 @@ def delete_memory(
     db: Session = Depends(get_db),
 ) -> None:
     memory = _one(db, access.tandem.id, memory_id)
+    if expected_version is not None and memory.version != expected_version:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Memory changed since it was loaded",
+                "current_version": memory.version,
+            },
+        )
+    media = db.scalars(
+        select(MemoryMedia).where(
+            MemoryMedia.memory_id == memory.id, MemoryMedia.tandem_id == access.tandem.id
+        )
+    ).all()
+    storage: ObjectStorage | None = getattr(request.app.state, "object_storage", None)
+    if media and storage is None:
+        raise HTTPException(status_code=503, detail="Private media storage is not configured")
+    if storage:
+        for item in media:
+            try:
+                storage.delete_object(item.object_key)
+            except Exception:
+                raise HTTPException(
+                    status_code=503, detail="Photo storage is temporarily unavailable"
+                ) from None
     statement = delete(Memory).where(Memory.id == memory.id, Memory.tandem_id == access.tandem.id)
     if expected_version is not None:
         statement = statement.where(Memory.version == expected_version)

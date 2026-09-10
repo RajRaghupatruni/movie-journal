@@ -13,6 +13,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +34,16 @@ class Memory(Base):
         Index("ix_memories_tandem_category", "tandem_id", "category"),
         Index("ix_memories_tandem_updated_at", "tandem_id", "updated_at"),
         Index("ix_memories_search_vector", "search_vector", postgresql_using="gin"),
+        Index(
+            "uq_memories_movie_provider_date",
+            "tandem_id",
+            text("(metadata ->> 'provider_movie_id')"),
+            "local_date",
+            unique=True,
+            postgresql_where=text(
+                "category = 'movie' AND metadata ->> 'provider_movie_id' IS NOT NULL"
+            ),
+        ),
         UniqueConstraint("id", "tandem_id", name="uq_memories_id_tandem"),
     )
 
@@ -160,3 +171,34 @@ class ActivityEvent(Base):
     )
     correlation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+
+
+class MemoryMedia(Base):
+    __tablename__ = "memory_media"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["memory_id", "tandem_id"],
+            ["memories.id", "memories.tandem_id"],
+            ondelete="CASCADE",
+            name="fk_memory_media_memory_tandem",
+        ),
+        Index("ix_memory_media_tandem_memory_order", "tandem_id", "memory_id", "display_order"),
+        Index("ix_memory_media_tandem_created_at", "tandem_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    memory_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    tandem_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    object_key: Mapped[str] = mapped_column(String(512), unique=True, nullable=False)
+    content_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")

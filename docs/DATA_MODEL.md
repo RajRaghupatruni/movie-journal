@@ -19,6 +19,8 @@ systems.
   the display value for now. `(tandem_id, normalized_name)` is unique.
 - `memory_tags`: the memory/tag join, also carrying `tandem_id` for RLS and composite-FK
   tenant integrity.
+- `memory_media`: private processed image metadata keyed to an opaque S3-compatible object key.
+  The tandem ID is denormalized for RLS and composite memory foreign-key integrity.
 - `activity_events`: append-only, small audit records. State tables remain authoritative;
   this is not event sourcing. Event payloads are bounded to 4 KiB and never include notes,
   photos, tokens, or secrets.
@@ -42,7 +44,7 @@ rating, exact normalized tag, and PostgreSQL full-text search.
 The generated `search_vector` covers title, notes, and metadata snapshots and has a GIN
 index. A tag join participates in text search so normalized tag names are searchable. B-tree
 indexes support tenant/date timeline reads, category filters, updated records, participants,
-tag joins, and activity history; no provider or photo indexes are added prematurely.
+tag joins, media ordering, and activity history.
 
 ## Security and concurrency
 

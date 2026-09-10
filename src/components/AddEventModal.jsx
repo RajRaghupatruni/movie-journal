@@ -1,3 +1,4 @@
+// DEPRECATED MIGRATION REFERENCE: the active Keepsake Add Memory flow is in App.jsx.
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";

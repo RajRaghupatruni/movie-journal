@@ -33,9 +33,10 @@ leave. The final owner cannot leave, and ownership transfer or tandem deletion m
 before that invariant can be relaxed.
 
 Every private route uses centralized FastAPI dependencies: `get_current_user`,
-`require_tandem_member`, and `require_tandem_owner`. A missing membership is intentionally
-reported as 404 for tandem resources to avoid confirming guessed UUIDs; a member attempting an
-owner operation receives 403. Frontend route hiding is never an authorization decision.
+`require_tandem_member`, and `require_tandem_owner`. Integration search requires an authenticated
+user, and memory/media routes require membership in the requested Tandem. A missing membership
+is intentionally reported as 404 for tandem resources to avoid confirming guessed UUIDs; a member
+attempting an owner operation receives 403. Frontend route hiding is never an authorization decision.
 
 ## Invitation security
 
@@ -55,7 +56,7 @@ owner creates the invitation, for delivery by a later email service.
 
 FastAPI checks are the first authorization layer. PostgreSQL RLS is defense in depth on
 `tandems`, `tandem_members`, `invitations`, and every memory-domain table: `memories`,
-`memory_participants`, `tags`, `memory_tags`, and `activity_events`. Policies use trusted
+`memory_participants`, `tags`, `memory_tags`, `activity_events`, and `memory_media`. Policies use trusted
 `SECURITY DEFINER`
 membership predicates to avoid recursive policy queries and `FORCE ROW LEVEL SECURITY` so
 even table owners are subject to these policies. RLS permits a pending invitee to inspect the

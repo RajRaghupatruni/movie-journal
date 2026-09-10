@@ -4,6 +4,16 @@ No Firebase dependency is used by the new memory API. The legacy Firebase consum
 in the repository until their watched/watchlist and historical event data have an approved,
 repeatable import path.
 
+## Integration/media milestone status
+
+The new Keepsake Add Memory workflow is now the active capture path. Movie selection uses the
+backend TMDb adapter, place selection uses the backend Geoapify adapter, and photos use the
+authenticated private S3-compatible media API. The old `src/components/MovieSearch.jsx`,
+`src/components/FoursquareSearch.jsx`, and `src/components/AddEventModal.jsx` are retained only
+as deprecated migration references and are not imported by the production Keepsake shell.
+No new movie, place, or media data is written to Firebase. Existing Firebase watched/watchlist
+and legacy event consumers remain until the approved import/replacement gate below is complete.
+
 ## Collections discovered
 
 - `tandems/{tandemId}/events/{eventId}`: title, `category` (Movie/Place/Trip/Activity), date,
