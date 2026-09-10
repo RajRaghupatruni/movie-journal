@@ -1,0 +1,28 @@
+{
+  "results": [
+    {
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License"
+      },
+      "name": "Chicago",
+      "city": "Chicago",
+      "county": "Cook County",
+      "state": "Illinois",
+      "postcode": null,
+      "country": "United States of America",
+      "country_code": "us",
+      "lon": -87.6298,
+      "lat": 41.8781,
+      "formatted": "Chicago, Cook County, Illinois, United States of America",
+      "address_line1": "Chicago",
+      "address_line2": "Cook County, Illinois, United States of America",
+      "result_type": "city",
+      "place_id": "51f0b2f5a20f1b274059dc0a96dfac6c"
+    }
+  ],
+  "query": {
+    "text": "Chicago"
+  }
+}

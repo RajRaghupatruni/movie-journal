@@ -198,18 +198,15 @@ class GeoapifyClient:
             headers=None,
             timeout=self.settings.provider_timeout_seconds,
         )
-        features = payload.get("features", [])
-        if not isinstance(features, list):
+        results = payload.get("results")
+        if not isinstance(results, list):
             raise ProviderUnavailable
         normalized: list[PlaceSearchResult] = []
-        for feature in features[:10]:
-            if not isinstance(feature, dict):
-                continue
-            properties = feature.get("properties")
-            if not isinstance(properties, dict):
-                continue
+        for result in results[:10]:
+            if not isinstance(result, dict):
+                raise ProviderUnavailable
             try:
-                normalized.append(normalize_place(properties))
+                normalized.append(normalize_place(result))
             except ProviderUnavailable:
-                continue
+                raise ProviderUnavailable from None
         return normalized
