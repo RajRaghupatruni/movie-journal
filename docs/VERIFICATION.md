@@ -1,5 +1,8 @@
 # Verification — memory-domain vertical slice — 2026-09-09
 
+> Historical verification from before `tandem/product-cleanup`; legacy Firebase/Foursquare
+> observations below are retained as audit history only.
+
 ## Memory-domain milestone
 
 The PostgreSQL-backed memory/media vertical slice is implemented through migration

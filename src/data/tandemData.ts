@@ -34,7 +34,6 @@ export interface TandemSnapshot {
   }
   members: TandemMember[]
   memories: Memory[]
-  watchlist: Array<Pick<Memory, 'id' | 'title' | 'image' | 'imageAlt' | 'tags'> & { year: string; addedLabel: string }>
   collections: Array<{ name: string; count: number; image: string }>
 }
 
@@ -60,7 +59,7 @@ export const demoSnapshot: TandemSnapshot = {
     name: 'Raj & Alex',
     memberCount: 2,
     memoryCount: 147,
-    createdLabel: 'Together since 2021',
+    createdLabel: 'Since 2021',
   },
   members: [
     { id: 'raj', name: 'Raj Rao', role: 'Member', initials: 'RR', color: '#8f4357' },
@@ -99,11 +98,6 @@ export const demoSnapshot: TandemSnapshot = {
       id: 'late-summer-walk', title: 'A late summer walk', type: 'activity', date: '2026-09-03', location: 'Lincoln Park',
       participants: ['Raj', 'Alex'], excerpt: 'The light stayed with us all the way home.', tags: ['today', 'walks'], image: photos.garden, imageAlt: 'Sunlit green leaves',
     },
-  ],
-  watchlist: [
-    { id: 'watch-1', title: 'Perfect Days', year: '2023', addedLabel: 'Added yesterday', image: photos.film, imageAlt: 'Cinema seats', tags: ['movie'] },
-    { id: 'watch-2', title: 'Before Sunrise', year: '1995', addedLabel: 'Added 4 days ago', image: photos.lisbon, imageAlt: 'Lisbon street', tags: ['movie', 'classic'] },
-    { id: 'watch-3', title: 'The Taste of Things', year: '2023', addedLabel: 'Added last week', image: photos.restaurant, imageAlt: 'A warm restaurant table', tags: ['movie', 'food'] },
   ],
   collections: [
     { name: 'Little rituals', count: 24, image: photos.coffee },

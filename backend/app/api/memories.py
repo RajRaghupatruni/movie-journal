@@ -213,9 +213,7 @@ def create_memory(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MemoryResponse:
-    participants = _validate_participants(
-        db, access.tandem.id, [current_user.id, *payload.participant_ids]
-    )
+    participants = _validate_participants(db, access.tandem.id, payload.participant_ids)
     memory = Memory(
         tandem_id=access.tandem.id,
         created_by=current_user.id,

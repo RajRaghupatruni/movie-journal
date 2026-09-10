@@ -20,7 +20,7 @@ flowchart LR
 - Structured JSON logs contain time, severity, event name, correlation ID and request duration/status. Incoming request IDs must be UUIDs; otherwise generate one and return it in `X-Request-ID`. Request bodies, headers, query strings, SQL parameters and exception text are excluded from our request/database error logs.
 - Development CORS allows explicit local HTTP origins only, without credentialed requests. It is disabled in test/production. This is not the future auth configuration. Vite proxies `/api` to the backend; backend endpoints do not require frontend secrets.
 - Alembic owns schema evolution. `0001_foundation` is intentionally empty: only `alembic_version` exists after upgrade. No `create_all`, automatic startup migrations or data migration. Run migrations explicitly as a deployment/development step.
-- The first product slice uses one Tandem-scoped `memories` entity with strict category metadata, participant/tag joins, PostgreSQL full-text search, optimistic versions, append-only activity records, provider snapshots, and private processed media. New memory writes do not use Firebase; nostalgia anniversaries, Redis features, notifications, and realtime updates remain later milestones.
+- The first product slice uses one Tandem-scoped `memories` entity with strict category metadata, participant/tag joins, PostgreSQL full-text search, optimistic versions, append-only activity records, provider snapshots, and private processed media. PostgreSQL is authoritative; nostalgia anniversaries, Redis features, notifications, and realtime updates remain later milestones.
 - Docker Compose runs frontend, backend, PostgreSQL 16 and Redis 7, with loopback-only published ports and named PostgreSQL/Redis volumes. Redis uses AOF and is independently health-checked. Backend readiness and product behavior do not depend on Redis. Hosted S3-compatible storage is configured externally; MinIO is optional for local development/tests.
 - npm remains the frontend manager; Vite remains the build tool. New meaningful boundaries use TypeScript with strict checking; old JSX remains to avoid churn. DOMPurify is shared by every legacy rich-HTML sink and editor insertion. Sanitization is mandatory even for old database content.
 
@@ -28,11 +28,18 @@ flowchart LR
 
 Google OAuth/OIDC will establish identity at the backend. Memberships will define access to each tandem; every read/write will check that access. User-supplied IDs, a selected UI tab and hardcoded groups are not authorization. Before introducing product API endpoints, settle session/cookie/CSRF policy and add negative tests for unauthorized and cross-tandem access.
 
-PostgreSQL will own user, tandem, membership, event and movie/watchlist records. Use ordinary relational constraints and short transactions; retain legacy import mappings. Do not derive ownership from participant names or silently map global movie collections into a user account. Keep Firestore until each replacement has verified parity; do not create new Firebase collections or dual-write systems.
+PostgreSQL owns user, tandem, membership, invitation, memory, and movie snapshot records. Use
+ordinary relational constraints and short transactions. Watchlist is a documented P1 follow-up;
+when implemented it must also be Tandem-scoped and PostgreSQL-backed. Do not derive ownership
+from participant names or silently map global legacy collections into a user account. Firebase is
+retired and no new Firebase collections or dual-write systems are allowed.
 
 ## Later external integrations
 
-Provider credentials belong only in backend runtime secrets. TMDb/Geoapify/Resend clients belong in `integrations/`, with request timeouts, normalized schemas, bounded results, controlled errors and tests. Frontend requests go through purpose-specific backend endpoints; no arbitrary URL proxy. Existing movie title/person/credits behavior is preserved for reconnection. Existing Foursquare place snapshots retain their original source during the later Geoapify change.
+Provider credentials belong only in backend runtime secrets. TMDb/Geoapify/Resend clients belong in
+`integrations/`, with request timeouts, normalized schemas, bounded results, controlled errors and
+tests. Frontend requests go through purpose-specific backend endpoints; no arbitrary URL proxy.
+Saved provider snapshots remain usable when a provider is unavailable.
 
 Private media uses S3-compatible storage. The backend authorizes uploads/downloads, enforces object ownership and size/type policy, stores metadata in PostgreSQL and issues short-lived signed URLs. No public bucket or permanent public object URLs.
 
@@ -40,7 +47,10 @@ Redis may later support expiring provider-response caches and bounded rate limit
 
 ## Deliberate exclusions
 
-No data migration, UI redesign, PWA or mobile-app work in this milestone. No new Firebase infrastructure, Kafka, Kubernetes, Celery, microservices, event sourcing, CQRS, Elasticsearch, GraphQL, On This Day, notifications, Redis caching, or WebSockets. Desktop-first does not require removing existing responsive CSS.
+No data migration, UI redesign, PWA or mobile-app work in this milestone. No Firebase
+infrastructure, Kafka, Kubernetes, Celery, microservices, event sourcing, CQRS, Elasticsearch,
+GraphQL, On This Day, notifications, Redis caching, or WebSockets. Desktop-first does not require
+removing existing responsive CSS.
 
 Follow the ordered migration tasks in [REPOSITORY_AUDIT.md](REPOSITORY_AUDIT.md#7-proposed-migration-map-and-exact-next-tasks). The old root planning documents are historical and do not override this architecture.
 

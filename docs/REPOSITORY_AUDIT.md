@@ -1,5 +1,9 @@
 # Repository audit — foundation milestone
 
+> Historical snapshot taken before `tandem/product-cleanup`. Firebase and Foursquare references
+> below describe retired code and are not active architecture. See [Firebase retirement](FIREBASE_MIGRATION.md)
+> and [the current roadmap](ROADMAP.md) for the post-cleanup decisions.
+
 Audited 2026-09-09 against the existing working tree, before implementation. All tracked application, configuration and documentation files were inspected, along with the npm lockfile, source imports/HTML sinks, local environment variable names, Git status and local Git history. No Firestore records, deployed rules, provider dashboards or hosted application were accessed. The only pre-existing working-tree modification was `.env`; its contents were preserved. This audit distinguishes source observations from assumptions about the deployed system.
 
 ## 1. Current architecture

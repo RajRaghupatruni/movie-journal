@@ -25,6 +25,10 @@ systems.
   this is not event sourcing. Event payloads are bounded to 4 KiB and never include notes,
   photos, tokens, or secrets.
 
+`Tandem` is named and invite-only. It supports up to five accepted members in v1, while the
+relational membership model remains naturally extensible. A memory's participant list may be
+empty or contain any subset of the current Tandem members.
+
 Movie metadata supports manual or future TMDb snapshots; place metadata supports manual or
 future Geoapify snapshots; trips require a destination and optionally carry start/end dates;
 activity and custom metadata stay deliberately small.

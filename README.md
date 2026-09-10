@@ -1,12 +1,14 @@
 # Tandem
 
-The existing React movie journal is evolving into a private shared-memory application. This milestone adds FastAPI/PostgreSQL infrastructure and security cleanup. The UI still uses legacy Firestore; authentication, application-data migration and new product features are not implemented.
+Tandem is an invite-only shared-memory application for small groups. PostgreSQL is authoritative
+for Tandems, members, invitations, memories, participants, tags, and private media. A Tandem can
+have up to five accepted members in v1.
 
 Read the [repository audit](docs/REPOSITORY_AUDIT.md), [target architecture](docs/TARGET_ARCHITECTURE.md), and [verification results](docs/VERIFICATION.md). Desktop is the target; old root planning documents are historical.
 
-**Manual action:** revoke every previously committed TMDb/Foursquare credential. Local `.env` was preserved but untracked; old Git history and deployed bundles still require incident cleanup. Live movie/place search is temporarily disabled to remove browser secrets. Saved records and existing Firestore workflows are retained.
-
-The read-only browser smoke check received Firestore `permission-denied` errors. Saved-data access cannot be verified until the project owner reviews the existing deployed rules/access configuration. No rules were changed and no records were written.
+**Manual action:** revoke every previously committed provider credential. Previously committed
+secrets and old deployed artifacts require separate incident cleanup. Legacy providers have no
+active runtime role; Geoapify is the active place provider.
 
 ## Full development stack
 
@@ -138,4 +140,6 @@ CI gates current source with Gitleaks and the Python guard, runs frontend tests/
 | `API_PROXY_TARGET` | Vite **process environment** override; defaults to http://127.0.0.1:8000, Compose uses http://backend:8000 |
 | `REDIS_URL` | Reserved future name, not currently read or required |
 
-No `VITE_*` values are exposed. Firebase client identifiers remain public config pending migration. Google login uses server-side sessions and does not store provider access tokens. A fresh Compose volume creates the migration/runtime role split; an existing volume must be provisioned manually before the API is run with a non-superuser runtime URL. Follow the audit's ordered migration plan before feature development or deployment.
+No `VITE_*` values are exposed. Google login uses server-side sessions and does not store provider
+access tokens. A fresh Compose volume creates the migration/runtime role split; an existing volume
+must be provisioned manually before the API is run with a non-superuser runtime URL.
