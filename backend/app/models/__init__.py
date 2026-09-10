@@ -3,10 +3,12 @@
 from app.models.domain import (
     AuthSession,
     Invitation,
+    NotificationOutbox,
     OAuthState,
     Tandem,
     TandemMember,
     User,
+    UserNotificationPreference,
 )
 from app.models.memory import ActivityEvent, Memory, MemoryMedia, MemoryParticipant, MemoryTag, Tag
 
@@ -23,4 +25,6 @@ __all__ = [
     "Tandem",
     "TandemMember",
     "User",
+    "UserNotificationPreference",
+    "NotificationOutbox",
 ]

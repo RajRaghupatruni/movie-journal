@@ -81,6 +81,14 @@ The runtime role receives only application table/function privileges. A superuse
 `BYPASSRLS` is not a valid production runtime configuration, even though a simple disposable
 test database may use one for migrations.
 
+Notification preferences are user-scoped under the same transaction-local identity. The
+anniversary outbox is FORCE-RLS protected and is not granted to the API runtime role. The
+scheduled worker uses the migration/service connection and an explicit transaction-local
+`app.worker_mode` policy to process outbox rows; it never accepts a user-controlled worker flag.
+Before an email send it re-checks current membership, memory existence and `nostalgia_eligible`,
+and both notification preferences. This prevents a stale queued intent from crossing a removal,
+edit, deletion, or opt-out boundary.
+
 ## Threats considered and limits
 
 This design addresses guessed tandem IDs, arbitrary self-membership, invitation replay,

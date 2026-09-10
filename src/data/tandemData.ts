@@ -125,11 +125,12 @@ export const launcherChoices = [
   { type: 'custom' as const, label: 'Something else', note: 'Make it your own', icon: 'plus' },
 ]
 
-export function getAnniversaryCopy(memory?: Memory): { eyebrow: string; fallback: boolean; title: string; excerpt: string } {
+export function getAnniversaryCopy(memory?: Memory, yearsAgo?: number): { eyebrow: string; fallback: boolean; title: string; excerpt: string } {
   if (!memory) {
     return { eyebrow: 'A small invitation', fallback: true, title: 'Nothing happened on this date — here’s something worth remembering.', excerpt: 'Every day does not need a story. Sometimes it is enough to make room for the next one.' }
   }
-  return { eyebrow: 'Three years ago today', fallback: false, title: memory.title, excerpt: memory.excerpt }
+  const label = yearsAgo === 1 ? 'One year ago today' : `${yearsAgo || 3} years ago today`
+  return { eyebrow: label, fallback: false, title: memory.title, excerpt: memory.excerpt }
 }
 
 export function groupMemoriesByYear(memories: Memory[]): Array<{ year: string; months: Array<{ label: string; memories: Memory[] }> }> {

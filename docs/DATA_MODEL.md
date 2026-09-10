@@ -29,6 +29,12 @@ systems.
 relational membership model remains naturally extensible. A memory's participant list may be
 empty or contain any subset of the current Tandem members.
 
+`user_notification_preferences` stores one preference row per user: an IANA timezone,
+anniversary/on-this-day enablement, email enablement, and a preferred local delivery hour.
+`notification_outbox` is the transactional email intent table. Its foreign key to a memory
+cascades on deletion, and its unique idempotency key is formed from Tandem, user, memory,
+anniversary year, and channel.
+
 Movie metadata supports manual or future TMDb snapshots; place metadata supports manual or
 future Geoapify snapshots; trips require a destination and optionally carry start/end dates;
 activity and custom metadata stay deliberately small.

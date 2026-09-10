@@ -11,8 +11,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.db.session import get_db, set_current_user_id
-from app.models import AuthSession, OAuthState, User
-from app.schemas.auth import TandemResponse, UserResponse
+from app.models import AuthSession, OAuthState, User, UserNotificationPreference
+from app.schemas.auth import (
+    NotificationPreferencePatch,
+    NotificationPreferenceResponse,
+    TandemResponse,
+    UserResponse,
+)
 from app.services.auth import (
     create_auth_session,
     get_current_user,
@@ -150,6 +155,13 @@ async def google_callback(
         user.display_name = str(profile.get("name") or user.display_name)[:200]
         user.avatar_url = str(profile["picture"])[:2048] if profile.get("picture") else None
 
+    db.flush()
+    set_current_user_id(db, str(user.id))
+    if db.scalar(
+        select(UserNotificationPreference).where(UserNotificationPreference.user_id == user.id)
+    ) is None:
+        db.add(UserNotificationPreference(user_id=user.id))
+
     oauth_state.consumed_at = datetime.now(UTC)
     db.flush()
     raw_session = create_auth_session(db, user.id, settings)
@@ -187,6 +199,41 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)) 
 @router.get("/api/me", response_model=UserResponse)
 def me(current_user: User = Depends(get_current_user)) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+def _preferences(db: Session, user_id) -> UserNotificationPreference:
+    preference = db.scalar(
+        select(UserNotificationPreference).where(UserNotificationPreference.user_id == user_id)
+    )
+    if preference is None:
+        preference = UserNotificationPreference(user_id=user_id)
+        db.add(preference)
+        db.flush()
+    return preference
+
+
+@router.get("/api/me/preferences", response_model=NotificationPreferenceResponse)
+def get_preferences(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> NotificationPreferenceResponse:
+    preference = _preferences(db, current_user.id)
+    db.commit()
+    return NotificationPreferenceResponse.model_validate(preference)
+
+
+@router.patch("/api/me/preferences", response_model=NotificationPreferenceResponse)
+def update_preferences(
+    payload: NotificationPreferencePatch,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> NotificationPreferenceResponse:
+    preference = _preferences(db, current_user.id)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(preference, key, value)
+    db.commit()
+    set_current_user_id(db, str(current_user.id))
+    db.refresh(preference)
+    return NotificationPreferenceResponse.model_validate(preference)
 
 
 @router.get("/api/me/tandems", response_model=list[TandemResponse])
