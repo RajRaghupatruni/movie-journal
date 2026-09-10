@@ -60,6 +60,10 @@ async function selectTandem(page, name = 'Sunday table') {
   await page.getByRole('menuitem', { name: new RegExp(name) }).click();
 }
 
+async function settleVisual(page) {
+  await page.waitForTimeout(450);
+}
+
 test.describe('Tandem V1 authenticated acceptance', () => {
   test('scopes navigation, simplified capture, TMDb selection, participants, and duplicate warning', async ({ page }) => {
     await installAuthenticatedApi(page);
@@ -69,6 +73,8 @@ test.describe('Tandem V1 authenticated acceptance', () => {
     await selectTandem(page);
     await expect(page.getByText('Keep finding your way back.')).toBeVisible();
     await expect(page.getByText('Sunday table').first()).toBeVisible();
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-today-1440.png', fullPage: true });
     await page.getByRole('button', { name: 'Add memory' }).first().click();
     await page.getByRole('button', { name: /Movie/ }).click();
     await expect(page.getByRole('dialog', { name: /Add a movie/ })).toBeVisible();
@@ -83,6 +89,7 @@ test.describe('Tandem V1 authenticated acceptance', () => {
     await expect(page.getByText('Who was there?', { exact: true })).toBeVisible();
     await expect(page.getByRole('checkbox', { name: 'Alex' })).toBeChecked();
     await expect(page.getByRole('alert')).toContainText('This looks similar');
+    await settleVisual(page);
     await page.screenshot({ path: 'test-results/acceptance-scoped-today-and-capture.png', fullPage: true });
   });
 
@@ -104,6 +111,8 @@ test.describe('Tandem V1 authenticated acceptance', () => {
     await page.goto('/?invite=invite-ref');
     await expect(page.getByRole('heading', { name: 'Join Sunday table' })).toBeVisible();
     await expect(page.getByText(/4 existing memories/)).toBeVisible();
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-invitation-1280.png', fullPage: true });
     await page.getByRole('button', { name: /Accept invitation/ }).click();
     await expect(page.getByRole('heading', { name: 'Join Sunday table' })).toBeHidden();
     await selectTandem(page);
@@ -114,15 +123,24 @@ test.describe('Tandem V1 authenticated acceptance', () => {
     await page.getByLabel('Reflection').fill('A keeper.');
     await page.getByRole('button', { name: 'Save my reflection' }).click();
     await expect(page.getByText('Your reflection is saved.')).toBeVisible();
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-memory-detail-1280.png', fullPage: true });
     await page.getByRole('button', { name: /Delete$/ }).click();
     await expect(page.getByRole('dialog', { name: /Recently Deleted/ })).toBeVisible();
     await page.getByRole('button', { name: 'Move to Recently Deleted' }).click();
     await page.getByRole('button', { name: 'Recently Deleted' }).click();
     await expect(page.getByRole('heading', { name: 'Recently Deleted' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Coast weekend' })).toBeVisible();
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-recently-deleted-1280.png', fullPage: true });
     await page.getByRole('button', { name: 'Restore' }).click();
     await expect(page.getByText('Nothing waiting here.')).toBeVisible();
+    await settleVisual(page);
     await page.screenshot({ path: 'test-results/acceptance-recovery-and-reflection.png', fullPage: true });
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Keep Tandem feeling right' })).toBeVisible();
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-account-settings-1280.png', fullPage: true });
   });
 
   test('mode/search state, calendar trip range, rediscovery, preferences, and destructive modal', async ({ page }) => {
@@ -131,13 +149,19 @@ test.describe('Tandem V1 authenticated acceptance', () => {
     await page.goto('/memories?view=gallery&q=Coast');
     await expect(page.getByRole('heading', { name: 'Memories' })).toBeVisible();
     await expect(page.getByPlaceholder('Search your memories')).toHaveValue('Coast');
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-gallery-1600.png', fullPage: true });
     await page.getByRole('button', { name: 'Coast weekend', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Coast weekend' })).toBeVisible();
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-detail-1600.png', fullPage: true });
     await page.getByRole('button', { name: 'Back to Memories' }).click();
     await expect(page).toHaveURL(/\/memories\?view=gallery&q=Coast/);
     await expect(page.getByPlaceholder('Search your memories')).toHaveValue('Coast');
     await page.goto('/calendar');
     await expect(page.getByRole('heading', { name: 'Calendar' })).toBeVisible();
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-calendar-1600.png', fullPage: true });
     await page.goto('/memory/memory-1');
     await expect(page.getByText(/September 10, 2024 – September 12, 2024/)).toBeVisible();
     await page.goto('/');
@@ -148,9 +172,12 @@ test.describe('Tandem V1 authenticated acceptance', () => {
     await page.getByRole('button', { name: 'People & settings' }).click();
     await expect(page.getByText('Resurface memories from this Tandem')).toBeVisible();
     await expect(page.getByText('Routine Tandem notifications')).toBeVisible();
+    await settleVisual(page);
+    await page.screenshot({ path: 'test-results/acceptance-preferences-1600.png', fullPage: true });
     await page.getByRole('button', { name: 'Delete Tandem' }).click();
     await expect(page.getByRole('dialog', { name: /Delete Sunday table/ })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel' }).click();
+    await settleVisual(page);
     await page.screenshot({ path: 'test-results/acceptance-rediscovery-and-management.png', fullPage: true });
   });
 });
