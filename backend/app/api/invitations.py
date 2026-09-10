@@ -1,4 +1,6 @@
 from datetime import UTC, datetime, timedelta
+
+# ruff: noqa: E501
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
@@ -8,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.constants import MAX_TANDEM_MEMBERS
 from app.db.session import get_db, set_current_user_id
-from app.models import Invitation, Tandem, TandemMember, User
+from app.models import Invitation, Memory, Tandem, TandemMember, User
 from app.schemas.auth import InvitationCreate, InvitationCreated, InvitationSummary
 from app.services.auth import get_current_user, hash_secret, new_secret, normalize_email
 from app.services.authorization import TandemAccess, require_tandem_owner
@@ -18,7 +20,12 @@ router = APIRouter(tags=["invitations"])
 
 
 def _summary(
-    invitation: Invitation, tandem_name: str, inviter_name: str | None = None
+    invitation: Invitation,
+    tandem_name: str,
+    inviter_name: str | None = None,
+    *,
+    memory_count: int = 0,
+    earliest_memory_date=None,
 ) -> InvitationSummary:
     return InvitationSummary(
         id=invitation.id,
@@ -28,6 +35,26 @@ def _summary(
         status=invitation.status,
         expires_at=invitation.expires_at,
         inviter_name=inviter_name,
+        memory_count=memory_count,
+        earliest_memory_date=earliest_memory_date,
+    )
+
+
+def _history_summary(
+    db: Session, invitation: Invitation, tandem_name: str, inviter_name: str | None = None
+):
+    count, earliest = db.execute(
+        select(func.count(Memory.id), func.min(Memory.local_date)).where(
+            Memory.tandem_id == invitation.tandem_id,
+            Memory.deleted_at.is_(None),
+        )
+    ).one()
+    return _summary(
+        invitation,
+        tandem_name,
+        inviter_name,
+        memory_count=int(count or 0),
+        earliest_memory_date=earliest,
     )
 
 
@@ -161,7 +188,7 @@ def create_invitation(
         db.commit()
         set_current_user_id(db, str(current_user.id))
     return InvitationCreated(
-        **_summary(invitation, tandem.name).model_dump(),
+        **_history_summary(db, invitation, tandem.name).model_dump(),
         reference=reference,
     )
 
@@ -181,10 +208,10 @@ def get_invitation(
         invitation.responded_at = datetime.now(UTC)
         db.commit()
         set_current_user_id(db, str(current_user.id))
-    if normalize_email(current_user.email) != invitation.invited_email:
+    if not current_user.email or normalize_email(current_user.email) != invitation.invited_email:
         raise HTTPException(status_code=403, detail="Invitation belongs to another email")
     inviter = db.get(User, invitation.invited_by)
-    return _summary(invitation, tandem.name, inviter.display_name if inviter else None)
+    return _history_summary(db, invitation, tandem.name, inviter.display_name if inviter else None)
 
 
 @router.get("/api/tandems/{tandem_id}/invitations", response_model=list[InvitationSummary])
@@ -203,7 +230,7 @@ def list_invitations(
         if invitation.status == "PENDING" and invitation.expires_at <= now:
             invitation.status = "EXPIRED"
             invitation.responded_at = now
-        result.append(_summary(invitation, access.tandem.name, inviter_name))
+        result.append(_history_summary(db, invitation, access.tandem.name, inviter_name))
     db.commit()
     return result
 
@@ -217,7 +244,7 @@ def _respond_to_invitation(
     set_current_user_id(db, str(current_user.id))
     invitation = _find_invitation(db, safe_reference)
     now = datetime.now(UTC)
-    if normalize_email(current_user.email) != invitation.invited_email:
+    if not current_user.email or normalize_email(current_user.email) != invitation.invited_email:
         raise HTTPException(status_code=403, detail="Invitation belongs to another email")
     if invitation.status != "PENDING":
         raise HTTPException(status_code=409, detail="Invitation is no longer pending")
@@ -294,7 +321,7 @@ def _respond_to_invitation(
     db.commit()
     set_current_user_id(db, str(current_user.id))
     inviter = db.get(User, invitation.invited_by)
-    return _summary(invitation, tandem.name, inviter.display_name if inviter else None)
+    return _history_summary(db, invitation, tandem.name, inviter.display_name if inviter else None)
 
 
 @router.post("/api/invitations/{safe_reference}/accept", response_model=InvitationSummary)
@@ -410,6 +437,8 @@ def resend_invitation(
         )
         db.commit()
     return InvitationCreated(
-        **_summary(invitation, access.tandem.name, current_user.display_name).model_dump(),
+        **_history_summary(
+            db, invitation, access.tandem.name, current_user.display_name
+        ).model_dump(),
         reference=reference,
     )

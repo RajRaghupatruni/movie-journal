@@ -9,10 +9,19 @@ from app.models.domain import (
     StorageCleanupFailure,
     Tandem,
     TandemMember,
+    TandemUserPreference,
     User,
     UserNotificationPreference,
 )
-from app.models.memory import ActivityEvent, Memory, MemoryMedia, MemoryParticipant, MemoryTag, Tag
+from app.models.memory import (
+    ActivityEvent,
+    Memory,
+    MemoryMedia,
+    MemoryParticipant,
+    MemoryReflection,
+    MemoryTag,
+    Tag,
+)
 
 __all__ = [
     "AuthSession",
@@ -21,6 +30,7 @@ __all__ = [
     "Memory",
     "MemoryMedia",
     "MemoryParticipant",
+    "MemoryReflection",
     "MemoryTag",
     "OAuthState",
     "Tag",
@@ -31,4 +41,5 @@ __all__ = [
     "NotificationOutbox",
     "Notification",
     "StorageCleanupFailure",
+    "TandemUserPreference",
 ]

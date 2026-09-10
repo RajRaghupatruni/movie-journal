@@ -2,8 +2,7 @@ export type MemoryType = 'movie' | 'place' | 'trip' | 'activity' | 'moment' | 'c
 
 export const navItems = [
   { label: 'Today', path: '/', icon: 'sun' },
-  { label: 'Timeline', path: '/timeline', icon: 'timeline' },
-  { label: 'Explore', path: '/explore', icon: 'search' },
+  { label: 'Memories', path: '/memories', icon: 'timeline' },
   { label: 'Calendar', path: '/calendar', icon: 'calendar' },
 ] as const
 

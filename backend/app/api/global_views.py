@@ -1,9 +1,11 @@
 import json
+
+# ruff: noqa: E501
 from datetime import UTC, date, datetime
 from hashlib import sha256
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,6 +20,7 @@ from app.models import (
     Tag,
     Tandem,
     TandemMember,
+    TandemUserPreference,
     User,
     UserNotificationPreference,
 )
@@ -34,6 +37,7 @@ def _query(user_id, *, tandem_id=None, category=None, year=None, q=None):
         select(Memory)
         .join(TandemMember, TandemMember.tandem_id == Memory.tandem_id)
         .where(TandemMember.user_id == user_id)
+        .where(Memory.deleted_at.is_(None))
         .order_by(Memory.local_date.desc(), Memory.id.desc())
     )
     if tandem_id:
@@ -75,7 +79,9 @@ def global_memories(
     has_more = len(memories) > limit
     items = memories[:limit]
     return MemoryListResponse(
-        items=_responses(db, items, getattr(request.app.state, "object_storage", None)),
+        items=_responses(
+            db, items, getattr(request.app.state, "object_storage", None), current_user.id
+        ),
         offset=offset,
         limit=limit,
         next_offset=offset + limit if has_more else None,
@@ -85,6 +91,7 @@ def global_memories(
 @router.get("/on-this-day", response_model=OnThisDayResponse)
 def global_on_this_day(
     request: Request,
+    tandem_id: UUID | None = None,
     now: datetime | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -95,19 +102,40 @@ def global_on_this_day(
             UserNotificationPreference.user_id == current_user.id
         )
     )
-    timezone = preference.timezone if preference else "UTC"
+    tandem = None
+    if tandem_id:
+        tandem = db.scalar(
+            select(Tandem)
+            .join(TandemMember, TandemMember.tandem_id == Tandem.id)
+            .where(Tandem.id == tandem_id, TandemMember.user_id == current_user.id)
+        )
+        if tandem is None:
+            raise HTTPException(status_code=404, detail="Tandem not found")
+    timezone = tandem.timezone if tandem else (preference.timezone if preference else "UTC")
     effective_now = now or datetime.now(UTC)
     today = local_date_for(effective_now, timezone)
-    memories = db.scalars(
+    statement = (
         select(Memory)
         .join(TandemMember, TandemMember.tandem_id == Memory.tandem_id)
+        .outerjoin(
+            TandemUserPreference,
+            (TandemUserPreference.tandem_id == Memory.tandem_id)
+            & (TandemUserPreference.user_id == current_user.id),
+        )
         .where(
             TandemMember.user_id == current_user.id,
+            Memory.deleted_at.is_(None),
             Memory.nostalgia_eligible.is_(True),
+            (
+                TandemUserPreference.resurfacing_enabled.is_(True)
+                | TandemUserPreference.id.is_(None)
+            ),
             Memory.local_date < date(today.year, 1, 1),
         )
-        .order_by(Memory.local_date.desc(), Memory.id)
-    ).all()
+    )
+    if tandem_id:
+        statement = statement.where(Memory.tandem_id == tandem_id)
+    memories = db.scalars(statement.order_by(Memory.local_date.desc(), Memory.id)).all()
     matches = build_anniversary_matches(memories, today)
     fallback = None
     if not matches and memories:
@@ -117,7 +145,10 @@ def global_on_this_day(
     response_map = {
         item.id: value
         for item, value in zip(
-            all_items, _responses(db, all_items, getattr(request.app.state, "object_storage", None))
+            all_items,
+            _responses(
+                db, all_items, getattr(request.app.state, "object_storage", None), current_user.id
+            ),
         )
     }
     return OnThisDayResponse(
@@ -153,7 +184,7 @@ def export_account(
     memories = (
         db.scalars(
             select(Memory)
-            .where(Memory.tandem_id.in_(tandem_ids))
+            .where(Memory.tandem_id.in_(tandem_ids), Memory.deleted_at.is_(None))
             .order_by(Memory.local_date, Memory.id)
         ).all()
         if tandem_ids
@@ -173,7 +204,7 @@ def export_account(
             )
             .join(User, User.id == MemoryParticipant.user_id)
             .join(Memory, Memory.id == MemoryParticipant.memory_id)
-            .where(Memory.tandem_id.in_(tandem_ids))
+            .where(Memory.tandem_id.in_(tandem_ids), Memory.deleted_at.is_(None))
         ).all()
         if tandem_ids
         else []
@@ -183,7 +214,7 @@ def export_account(
             select(MemoryTag.memory_id, Tag.name)
             .join(Tag, Tag.id == MemoryTag.tag_id)
             .join(Memory, Memory.id == MemoryTag.memory_id)
-            .where(Memory.tandem_id.in_(tandem_ids))
+            .where(Memory.tandem_id.in_(tandem_ids), Memory.deleted_at.is_(None))
             .order_by(Tag.name)
         ).all()
         if tandem_ids

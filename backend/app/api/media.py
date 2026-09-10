@@ -29,7 +29,11 @@ def _storage(request: Request) -> ObjectStorage:
 
 def _memory(db: Session, access: TandemAccess, memory_id: UUID) -> Memory:
     memory = db.scalar(
-        select(Memory).where(Memory.id == memory_id, Memory.tandem_id == access.tandem.id)
+        select(Memory).where(
+            Memory.id == memory_id,
+            Memory.tandem_id == access.tandem.id,
+            Memory.deleted_at.is_(None),
+        )
     )
     if memory is None:
         raise HTTPException(status_code=404, detail="Memory not found")

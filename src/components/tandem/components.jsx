@@ -8,7 +8,7 @@ import { formatMemoryDate, launcherChoices, memoryTypeLabels, navItems } from '.
 import { formatParticipantNames, memberColor } from './presentation'
 
 const iconMap = { sun: Sun, timeline: TimelineIcon, search: Search, calendar: CalendarDays }
-const launcherIconMap = { film: Film, pin: Pin, map: Map, sparkles: Sparkles, plus: Plus }
+  const launcherIconMap = { film: Film, pin: Pin, map: Map, sparkles: Sparkles, plus: Plus }
 
 function CompactMemberStack({ members, tandemName }) {
   const displayMembers = members.length
@@ -19,7 +19,9 @@ function CompactMemberStack({ members, tandemName }) {
   </span>
 }
 
-export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tandem', members = [] }) {
+export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'All Tandems', members = [], tandems = [], selectedTandemId = '', onSelectTandem = () => {} }) {
+  const isScoped = Boolean(selectedTandemId)
+  const selectScope = (id) => onSelectTandem(id)
   return (
     <aside className="sidebar" aria-label="Primary navigation">
       <div className="brand-lockup">
@@ -28,7 +30,7 @@ export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tand
       </div>
       <button className="add-memory-button" onClick={onAddMemory}><Plus size={17} strokeWidth={2.5} /><span>Add memory</span><span className="shortcut">N</span></button>
       <nav className="primary-nav">
-        <div className="nav-section-label">Your space</div>
+        <div className="nav-section-label">Your memories</div>
         {navItems.map((item) => {
           const Icon = iconMap[item.icon]
           const active = item.path === '/' ? path === '/' : path.startsWith(item.path)
@@ -36,9 +38,10 @@ export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tand
         })}
       </nav>
       <div className="sidebar-lower">
-        <div className="nav-section-label">Your tandem</div>
-        <button className="tandem-mini-switcher" onClick={() => onNavigate('/tandem')}><CompactMemberStack members={members} tandemName={tandemName} /><span className="tandem-mini-name">{tandemName}</span><ChevronDown size={15} /></button>
-        <a href="/tandem" className="nav-item" onClick={(event) => { event.preventDefault(); onNavigate('/tandem') }}><Users size={18} /><span>Our tandem</span></a>
+        <div className="nav-section-label">Tandems</div>
+        <button className={`tandem-mini-switcher ${!isScoped ? 'global-scope' : ''}`} onClick={() => selectScope('')}><CompactMemberStack members={isScoped ? members : []} tandemName={tandemName} /><span className="tandem-mini-name">{tandemName}</span><ChevronDown size={15} /></button>
+        <div className="sidebar-tandem-list">{tandems.map((item) => <button key={item.id} className={`nav-item tandem-nav-item ${item.id === selectedTandemId ? 'active' : ''}`} onClick={() => selectScope(item.id)}><span className="tandem-nav-mark">{item.name.slice(0, 1).toUpperCase()}</span><span>{item.name}</span></button>)}</div>
+        {isScoped && <><button className="nav-item" onClick={() => onNavigate('/tandem')}><Users size={18} /><span>People & settings</span></button><button className="nav-item" onClick={() => onNavigate('/recently-deleted')}><TimelineIcon size={18} /><span>Recently Deleted</span></button></>}
         <div className="sidebar-rule" />
         <button className="sidebar-settings" onClick={() => onNavigate('/settings')}><Settings2 size={17} /><span>Settings</span></button>
       </div>
@@ -67,6 +70,7 @@ export function TandemSwitcher({ tandems = [], selectedId, selectedName, onSelec
     </button>
     {open && <div className="tandem-switcher-menu" role="menu">
       <div className="switcher-menu-kicker">Your Tandems</div>
+      <button className={`switcher-option ${!selectedId ? 'selected' : ''}`} role="menuitem" onClick={() => { onSelect(''); setOpen(false) }}><span className="switcher-option-mark">✦</span><span><strong>All Tandems</strong><small>{!selectedId ? 'Global memory view' : 'Every accessible Tandem'}</small></span>{!selectedId && <Check size={15} />}</button>
       {tandems.map((item) => <button key={item.id} className={`switcher-option ${item.id === selectedId ? 'selected' : ''}`} role="menuitem" onClick={() => { onSelect(item.id); setOpen(false) }}><span className="switcher-option-mark">{item.name.slice(0, 1).toUpperCase()}</span><span><strong>{item.name}</strong><small>{item.id === selectedId ? 'Selected Tandem' : 'Private memory space'}</small></span>{item.id === selectedId && <Check size={15} />}</button>)}
       <button className="switcher-create" onClick={() => { onCreate(); setOpen(false) }}><Plus size={15} /> Create another Tandem</button>
     </div>}
@@ -86,8 +90,9 @@ export function NotificationBell({ notifications = [], unreadCount = 0, open = f
   return <div className="notification-wrap"><button className="notification-bell" onClick={onToggle} aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} aria-expanded={open}><Bell size={18} />{unreadCount > 0 && <span className="notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}</button>{open && <aside className="notification-drawer" aria-label="Notifications"><div className="notification-drawer-head"><div><div className="eyebrow">A little note</div><h2>Notifications</h2></div><button className="text-action" onClick={onReadAll}>Mark all read</button></div>{notifications.length === 0 ? <div className="notification-empty"><Bell size={23} /><h3>Nothing calling you back.</h3><p>When a Tandem moment needs a second look, it will be here.</p></div> : <div className="notification-list">{notifications.map((item) => { const message = copy(item); return <button key={item.id} className={`notification-item ${item.read_at ? 'read' : 'unread'}`} onClick={() => { onRead(item); if (item.memory_id) onOpenMemory(item) }}><span className="notification-dot" /><span><strong>{message.title}</strong><small>{message.detail} · {new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small></span></button> })}</div>}</aside>}</div>
 }
 
-export function AppShell({ children, path, onNavigate, onAddMemory, query, onQueryChange, tandemName, currentUserName, tandemMembers = [], tandems = [], selectedTandemId, onSelectTandem, onCreateTandem, notifications = [], unreadCount = 0, notificationOpen = false, onToggleNotifications, onReadNotification, onReadAllNotifications, onOpenNotificationMemory }) {
-  return <div className="app-frame"><Sidebar path={path} onNavigate={onNavigate} onAddMemory={onAddMemory} tandemName={tandemName} members={tandemMembers} /><div className="app-main"><header className="topbar"><div className="topbar-context"><span className="context-kicker">{tandemName || 'Your Tandems'}</span><span className="context-slash">/</span><span className="context-page">{path === '/' ? 'Today' : path.slice(1).split('/')[0].replace(/-/g, ' ')}</span></div><div className="topbar-actions"><label className="top-search"><Search size={16} /><span className="sr-only">Search memories</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onNavigate(`/explore${query ? `?q=${encodeURIComponent(query)}` : ''}`) }} placeholder="Search memories" /><span className="search-key">⌘ K</span></label><TandemSwitcher tandems={tandems} selectedId={selectedTandemId} selectedName={tandemName} onSelect={onSelectTandem} onCreate={onCreateTandem} /><NotificationBell notifications={notifications} unreadCount={unreadCount} open={notificationOpen} onToggle={onToggleNotifications} onRead={onReadNotification} onReadAll={onReadAllNotifications} onOpenMemory={onOpenNotificationMemory} /><button className="top-avatar" aria-label="Open account settings" onClick={() => onNavigate('/settings')}>{(currentUserName || 'You').slice(0, 2).toUpperCase()}</button></div></header><main className="main-canvas">{children}</main></div></div>
+export function AppShell({ children, path, onNavigate, onAddMemory, query, onQueryChange, tandemName = 'All Tandems', currentUserName, tandemMembers = [], tandems = [], selectedTandemId = '', onSelectTandem, onCreateTandem, notifications = [], unreadCount = 0, notificationOpen = false, onToggleNotifications, onReadNotification, onReadAllNotifications, onOpenNotificationMemory }) {
+  const page = path === '/' ? 'Today' : path.startsWith('/memory/') ? 'Memory' : ['/memories', '/timeline', '/explore'].includes(path) ? 'Memories' : path.slice(1).split('/')[0].replace(/-/g, ' ')
+  return <div className="app-frame"><Sidebar path={path} onNavigate={onNavigate} onAddMemory={onAddMemory} tandemName={tandemName} members={tandemMembers} tandems={tandems} selectedTandemId={selectedTandemId} onSelectTandem={onSelectTandem} /><div className="app-main"><header className="topbar"><div className="topbar-context"><span className="context-kicker">{tandemName}</span><span className="context-slash">/</span><span className="context-page">{page}</span></div><div className="topbar-actions"><label className="top-search"><Search size={16} /><span className="sr-only">Search memories</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onNavigate(`/memories?view=gallery${query ? `&q=${encodeURIComponent(query)}` : ''}`) }} placeholder="Search memories" /><span className="search-key">⌘ K</span></label><TandemSwitcher tandems={tandems} selectedId={selectedTandemId} selectedName={tandemName} onSelect={onSelectTandem} onCreate={onCreateTandem} /><NotificationBell notifications={notifications} unreadCount={unreadCount} open={notificationOpen} onToggle={onToggleNotifications} onRead={onReadNotification} onReadAll={onReadAllNotifications} onOpenMemory={onOpenNotificationMemory} /><button className="top-avatar" aria-label="Open account settings" onClick={() => onNavigate('/settings')}>{(currentUserName || 'You').slice(0, 2).toUpperCase()}</button></div></header><main className="main-canvas">{children}</main></div></div>
 }
 
 export function PageHeader({ eyebrow, title, description, action, children }) {
@@ -113,8 +118,9 @@ export function MemoryBadge({ type }) {
 }
 
 export function MemoryCard({ memory, variant = 'standard', onOpen }) {
+  const cardImage = memory.posterImage || memory.image
   return <article className={`memory-card memory-card-${variant}`}>
-    <button className="memory-card-media" onClick={() => onOpen(memory.id)} aria-label={`Open memory: ${memory.title}`}><img src={memory.image} alt={memory.imageAlt} loading="lazy" /><span className="memory-card-fade" /><span className="memory-card-type"><MemoryBadge type={memory.type} /></span><span className="open-circle"><ArrowRight size={15} /></span></button>
+    <button className="memory-card-media" onClick={() => onOpen(memory.id)} aria-label={`Open memory: ${memory.title}`}><img src={cardImage} alt={memory.imageAlt} loading="lazy" /><span className="memory-card-fade" /><span className="memory-card-type"><MemoryBadge type={memory.type} /></span><span className="open-circle"><ArrowRight size={15} /></span></button>
     <div className="memory-card-body"><div className="memory-card-meta"><span>{formatMemoryDate(memory.date, 'short')}</span>{memory.tandemName && <><span className="meta-separator">·</span><span className="tandem-label">{memory.tandemName}</span></>}{memory.location && <><span className="meta-separator">·</span><span>{memory.location}</span></>}</div><button className="memory-card-title" onClick={() => onOpen(memory.id)}>{memory.title}</button><p>{memory.excerpt}</p><div className="memory-card-footer"><AvatarStack members={memory.participants.map((name, index) => ({ id: name, name, initials: name[0], color: index === 0 ? '#8f4357' : '#b86d57' }))} size="small" />{memory.rating && <span className="rating"><Star size={12} fill="currentColor" /> {memory.rating}/10</span>}<button className="card-more" aria-label={`More options for ${memory.title}`}><MoreHorizontal size={17} /></button></div></div>
   </article>
 }
@@ -159,7 +165,8 @@ export function AddMemoryLauncher({ open, onClose, onChoose }) {
 }
 
 export function MemoryDetail({ memory, canManage = false, onBack, onAddMemory, onEdit, onDelete }) {
-  return <div className="detail-page"><button className="back-link" onClick={onBack}><ArrowLeft size={15} /> Back to {memory.type === 'movie' ? 'explore' : 'timeline'}</button><div className="detail-layout"><div><div className="detail-media"><img src={memory.image} alt={memory.imageAlt} /><span className="detail-media-label">{memoryTypeLabels[memory.type]} · {new Date(`${memory.date}T12:00:00`).getFullYear()}</span></div>{memory.media?.length > 1 && <div className="detail-gallery" aria-label="Memory photos">{memory.media.slice(1).map((media) => <img key={media.id} src={media.url || memory.image} alt="" loading="lazy" />)}</div>}</div><article className="detail-copy"><div className="eyebrow">{formatMemoryDate(memory.date)} · {memory.tandemName}</div><div className="detail-heading-row"><h1>{memory.title}</h1>{canManage && <div className="detail-actions"><button className="button button-quiet" onClick={onEdit}>Edit</button><button className="button button-quiet button-danger" onClick={onDelete}>Delete</button></div>}</div>{memory.location && <div className="detail-location"><Pin size={16} /> {memory.location}</div>}<p className="detail-excerpt">{memory.excerpt}</p>{memory.notes && <blockquote>{memory.notes}</blockquote>}<div className="detail-divider" /><div className="detail-meta-grid"><div><span>Participants</span><strong>{formatParticipantNames(memory.participants)}</strong></div>{memory.rating && <div><span>Rating</span><strong className="detail-rating"><Star size={15} fill="currentColor" /> {memory.rating}/10</strong></div>}<div><span>Added</span><strong>{memory.createdByName || 'A tandem member'}</strong></div></div><div className="tag-row">{memory.tags.map((tag) => <span className="tag" key={tag}><Tag size={12} />{tag}</span>)}</div><button className="button button-primary detail-add" onClick={onAddMemory}><Plus size={16} /> Add another memory</button></article></div></div>
+  const dateLabel = memory.endDate && memory.endDate !== memory.date ? `${formatMemoryDate(memory.date)} – ${formatMemoryDate(memory.endDate)}` : formatMemoryDate(memory.date)
+  return <div className="detail-page"><button className="back-link" onClick={onBack}><ArrowLeft size={15} /> Back to Memories</button><div className="detail-layout"><div><div className="detail-media"><img src={memory.image} alt={memory.imageAlt} /><span className="detail-media-label">{memoryTypeLabels[memory.type]} · {new Date(`${memory.date}T12:00:00`).getFullYear()}</span></div>{memory.media?.length > 1 && <div className="detail-gallery" aria-label="Memory photos">{memory.media.slice(1).map((media) => <img key={media.id} src={media.url || memory.image} alt="" loading="lazy" />)}</div>}</div><article className="detail-copy"><div className="eyebrow">{dateLabel} · {memory.tandemName}</div><div className="detail-heading-row"><h1>{memory.title}</h1>{canManage && <div className="detail-actions"><button className="button button-quiet" onClick={onEdit}>Edit</button><button className="button button-quiet button-danger" onClick={onDelete}>Delete</button></div>}</div>{memory.location && <div className="detail-location"><Pin size={16} /> {memory.location}</div>}<p className="detail-excerpt">{memory.excerpt}</p>{memory.notes && <blockquote>{memory.notes}</blockquote>}<div className="detail-divider" /><div className="detail-meta-grid"><div><span>Participants</span><strong>{formatParticipantNames(memory.participants)}</strong></div>{memory.rating && <div><span>Rating</span><strong className="detail-rating"><Star size={15} fill="currentColor" /> {memory.rating}/10</strong></div>}<div><span>Added</span><strong>{memory.createdByName || 'A tandem member'}</strong></div></div><div className="tag-row">{memory.tags.map((tag) => <span className="tag" key={tag}><Tag size={12} />{tag}</span>)}</div><button className="button button-primary detail-add" onClick={onAddMemory}><Plus size={16} /> Add another memory</button></article></div></div>
 }
 
 export function MonthSwitcher({ label, onPrevious, onNext }) {

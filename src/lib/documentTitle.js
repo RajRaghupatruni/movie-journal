@@ -5,8 +5,9 @@ export function getDocumentTitle(path, authStatus) {
   if (path.startsWith('/memory/')) return 'Memory — Tandem'
   return {
     '/': 'Today — Tandem',
-    '/timeline': 'Timeline — Tandem',
-    '/explore': 'Explore — Tandem',
+    '/memories': 'Memories — Tandem',
+    '/timeline': 'Memories — Tandem',
+    '/explore': 'Memories — Tandem',
     '/calendar': 'Calendar — Tandem',
     '/tandem': 'Tandem — Settings',
     '/settings': 'Settings — Tandem',

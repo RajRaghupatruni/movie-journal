@@ -52,6 +52,7 @@ def generate_candidates(db: Session, now: datetime, *, email_delivery_enabled: b
     rows = db.execute(
         select(TandemMember.tandem_id, TandemMember.user_id)
         .join(User, User.id == TandemMember.user_id)
+        .where(User.is_active.is_(True), User.deleted_at.is_(None))
         .order_by(TandemMember.tandem_id, TandemMember.user_id)
     ).all()
     created = 0

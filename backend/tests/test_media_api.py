@@ -150,4 +150,11 @@ def test_memory_delete_removes_associated_object(media_clients):
             ).status_code
             == 204
         )
-        assert storage.deleted
+        # Memory deletion is soft for 30 days; private media remains available
+        # until restore-window expiry or explicit permanent deletion.
+        assert not storage.deleted
+        assert storage.objects
+        assert client.get(f"/api/tandems/{tandem_id}/memories/{memory['id']}").status_code == 404
+        recently_deleted = client.get(f"/api/tandems/{tandem_id}/memories/deleted")
+        assert recently_deleted.status_code == 200
+        assert recently_deleted.json()["items"][0]["id"] == memory["id"]

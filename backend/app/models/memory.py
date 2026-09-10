@@ -1,4 +1,6 @@
 from datetime import date, datetime
+
+# ruff: noqa: E501
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -13,7 +15,6 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
-    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
@@ -34,16 +35,6 @@ class Memory(Base):
         Index("ix_memories_tandem_category", "tandem_id", "category"),
         Index("ix_memories_tandem_updated_at", "tandem_id", "updated_at"),
         Index("ix_memories_search_vector", "search_vector", postgresql_using="gin"),
-        Index(
-            "uq_memories_movie_provider_date",
-            "tandem_id",
-            text("(metadata ->> 'provider_movie_id')"),
-            "local_date",
-            unique=True,
-            postgresql_where=text(
-                "category = 'movie' AND metadata ->> 'provider_movie_id' IS NOT NULL"
-            ),
-        ),
         UniqueConstraint("id", "tandem_id", name="uq_memories_id_tandem"),
     )
 
@@ -54,6 +45,7 @@ class Memory(Base):
     category: Mapped[str] = mapped_column(String(16), nullable=False)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     local_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     timezone: Mapped[str] = mapped_column(String(64), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -82,6 +74,10 @@ class Memory(Base):
         Computed(MEMORY_SEARCH_EXPRESSION, persisted=True),
         nullable=False,
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deletion_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class MemoryParticipant(Base):
@@ -93,18 +89,43 @@ class MemoryParticipant(Base):
             ondelete="CASCADE",
             name="fk_memory_participants_memory_tandem",
         ),
-        ForeignKeyConstraint(
-            ["tandem_id", "user_id"],
-            ["tandem_members.tandem_id", "tandem_members.user_id"],
-            ondelete="CASCADE",
-            name="fk_memory_participants_membership",
-        ),
         Index("ix_memory_participants_tandem_user", "tandem_id", "user_id"),
     )
 
     memory_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     tandem_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     user_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, nullable=False)
+    participant_display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class MemoryReflection(Base):
+    __tablename__ = "memory_reflections"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["memory_id", "tandem_id"],
+            ["memories.id", "memories.tandem_id"],
+            ondelete="CASCADE",
+            name="fk_memory_reflections_memory_tandem",
+        ),
+        UniqueConstraint("memory_id", "user_id", name="uq_memory_reflections_memory_user"),
+        Index("ix_memory_reflections_memory", "memory_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    memory_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    tandem_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    user_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reaction: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class Tag(Base):
