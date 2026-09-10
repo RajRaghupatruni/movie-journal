@@ -27,6 +27,7 @@ def production_values() -> dict:
         "s3_access_key_id": SecretStr("access-key"),
         "s3_secret_access_key": SecretStr("secret-key"),
         "s3_region": "us-west-004",
+        "email_delivery_enabled": True,
         "resend_api_key": SecretStr("resend-token"),
         "resend_from_address": "Tandem <hello@example.com>",
     }
@@ -46,6 +47,23 @@ def test_production_configuration_rejects_missing_required_provider():
         assert "TMDB_API_TOKEN" in str(error)
     else:
         raise AssertionError("missing production provider configuration was accepted")
+
+
+def test_production_configuration_does_not_require_resend_when_email_is_disabled():
+    values = production_values()
+    values["email_delivery_enabled"] = False
+    values.pop("resend_api_key")
+    values.pop("resend_from_address")
+    settings = Settings(**values)
+    assert settings.email_delivery_enabled is False
+
+
+@pytest.mark.parametrize("missing", ["resend_api_key", "resend_from_address"])
+def test_enabling_email_requires_resend_credentials(missing):
+    values = production_values()
+    values.pop(missing)
+    with pytest.raises(ValidationError, match="production configuration is missing"):
+        Settings(**values)
 
 
 def test_non_production_email_delivery_is_disabled_by_default():

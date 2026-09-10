@@ -1,4 +1,4 @@
-"""Generate and deliver anniversary emails as a bounded, schedulable process."""
+"""Generate in-app anniversary notifications and optionally deliver email."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def _worker_mode(db: Session) -> None:
     db.execute(text("SELECT set_config('app.worker_mode', 'true', false)"))
 
 
-def generate_candidates(db: Session, now: datetime) -> int:
+def generate_candidates(db: Session, now: datetime, *, email_delivery_enabled: bool = False) -> int:
     _worker_mode(db)
     rows = db.execute(
         select(TandemMember.tandem_id, TandemMember.user_id)
@@ -83,7 +83,7 @@ def generate_candidates(db: Session, now: datetime) -> int:
                     f"{match.anniversary_date.year}:in_app"
                 ),
             )
-            if not preference.anniversary_email_enabled:
+            if not email_delivery_enabled or not preference.anniversary_email_enabled:
                 continue
             key = idempotency_key_for(
                 tandem_id, user_id, match.memory.id, match.anniversary_date.year
@@ -158,6 +158,8 @@ def deliver_pending(
     settings: Settings,
     limit: int = 100,
 ) -> dict[str, int]:
+    if not settings.email_delivery_enabled:
+        return {"sent": 0, "cancelled": 0, "retrying": 0, "failed": 0}
     _worker_mode(db)
     db.execute(
         update(NotificationOutbox)
@@ -226,7 +228,13 @@ def run_worker(settings: Settings, *, now: datetime | None = None, adapter=None)
     engine = create_db_engine(settings)
     try:
         with Session(engine) as db:
-            generate_candidates(db, effective_now)
+            generate_candidates(
+                db,
+                effective_now,
+                email_delivery_enabled=settings.email_delivery_enabled,
+            )
+            if not settings.email_delivery_enabled:
+                return {"sent": 0, "cancelled": 0, "retrying": 0, "failed": 0}
             return deliver_pending(
                 db,
                 now=effective_now,
@@ -238,7 +246,9 @@ def run_worker(settings: Settings, *, now: datetime | None = None, adapter=None)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate and send Tandem anniversary emails")
+    parser = argparse.ArgumentParser(
+        description="Generate Tandem anniversary notifications and optionally send email"
+    )
     parser.add_argument("--now", help="UTC ISO timestamp for deterministic runs/tests")
     args = parser.parse_args()
     now = as_utc(datetime.fromisoformat(args.now)) if args.now else None

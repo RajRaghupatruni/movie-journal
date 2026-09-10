@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.main import create_app
-from app.models import AuthSession, Notification, TandemMember, User
+from app.models import AuthSession, Notification, NotificationOutbox, TandemMember, User
 from app.services.auth import hash_secret
-from app.workers.anniversary import generate_candidates
+from app.workers.anniversary import generate_candidates, run_worker
 from tests.helpers import provision_test_user
 
 pytestmark = pytest.mark.integration
@@ -340,10 +340,68 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
 
     with Session(runtime_engine) as db:
         now = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
-        first = generate_candidates(db, now)
-        second = generate_candidates(db, now)
+        first = generate_candidates(db, now, email_delivery_enabled=False)
+        assert first == 0
+        assert db.scalar(select(func.count()).select_from(NotificationOutbox)) == 0
+        with Session(owner_engine) as owner_db:
+            assert (
+                owner_db.scalar(
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(
+                        Notification.user_id == alice_id,
+                        Notification.type == "on_this_day",
+                        Notification.memory_id == first_memory["id"],
+                    )
+                )
+                == 1
+            )
+
+        first = generate_candidates(db, now, email_delivery_enabled=True)
+        second = generate_candidates(db, now, email_delivery_enabled=True)
         assert first == 1
         assert second == 0
+        assert db.scalar(select(func.count()).select_from(NotificationOutbox)) == 1
+
+    class NoEmailAdapter:
+        def send(self, **kwargs):
+            raise AssertionError(f"email delivery was attempted: {kwargs}")
+
+    disabled_settings = Settings(
+        _env_file=None,
+        app_env="test",
+        database_url=os.environ["TEST_DATABASE_URL"],
+        email_delivery_enabled=False,
+    )
+    assert run_worker(disabled_settings, now=now, adapter=NoEmailAdapter()) == {
+        "sent": 0,
+        "cancelled": 0,
+        "retrying": 0,
+        "failed": 0,
+    }
+
+    class RecordingEmailAdapter:
+        def __init__(self):
+            self.messages = []
+
+        def send(self, **kwargs):
+            self.messages.append(kwargs)
+            return "email-id"
+
+    enabled_adapter = RecordingEmailAdapter()
+    enabled_settings = Settings(
+        _env_file=None,
+        app_env="test",
+        database_url=os.environ["TEST_DATABASE_URL"],
+        email_delivery_enabled=True,
+    )
+    assert run_worker(enabled_settings, now=now, adapter=enabled_adapter) == {
+        "sent": 1,
+        "cancelled": 0,
+        "retrying": 0,
+        "failed": 0,
+    }
+    assert len(enabled_adapter.messages) == 1
 
     with Session(owner_engine) as db:
         assert (

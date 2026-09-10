@@ -10,7 +10,7 @@ flowchart LR
   API --> Media[Private S3-compatible storage]
   Scheduler[cron / hosted job] --> Worker[bounded anniversary worker]
   Worker --> SQL
-  Worker --> Resend[Resend email API]
+  Worker -. optional future .-> Resend[Resend email API]
 ```
 
 ## Foundation choices
@@ -24,7 +24,7 @@ flowchart LR
 - Alembic owns schema evolution. `0001_foundation` is intentionally empty: only `alembic_version` exists after upgrade. No `create_all`, automatic startup migrations or data migration. Run migrations explicitly as a deployment/development step.
 - The first product slice uses one Tandem-scoped `memories` entity with strict category metadata, participant/tag joins, PostgreSQL full-text search, optimistic versions, append-only activity records, provider snapshots, and private processed media. PostgreSQL is authoritative; the anniversary outbox/worker is included, while Redis, notifications beyond that worker, and realtime updates remain out of scope.
 - On This Day is a backend service over the represented `local_date`. It converts an injected/current instant into each requesting user's IANA timezone, matches earlier memories by local month/day, and applies the explicit Feb 29 rule: Feb 29 memories surface on Feb 29 in leap years and Feb 28 otherwise. The frontend never calculates eligibility.
-- Anniversary email intents use a PostgreSQL transactional outbox. A bounded `python -m app.workers.anniversary` process generates deterministic records, revalidates privacy before sending through Resend, and applies three-attempt exponential backoff. A crash after provider acceptance and before the database update can still result in an occasional duplicate; the database idempotency key prevents duplicate queued intents, not provider-side exactly-once delivery.
+- Anniversary email intents use a PostgreSQL transactional outbox retained for a future release. At v1 launch, `EMAIL_DELIVERY_ENABLED=false`: the bounded `python -m app.workers.anniversary` process always generates deduplicated in-app notifications, but creates no new email outbox rows and does not load Resend. When later enabled, it revalidates privacy before sending through Resend and applies three-attempt exponential backoff. A crash after provider acceptance and before the database update can still result in an occasional duplicate; the database idempotency key prevents duplicate queued intents, not provider-side exactly-once delivery.
 - Docker Compose runs a development frontend, backend, and PostgreSQL 16 with loopback-only published ports and a named PostgreSQL volume. Production uses the root multi-stage Dockerfile and no Compose/Redis dependency. Hosted S3-compatible storage is configured externally.
 - npm remains the frontend manager; Vite remains the build tool. New meaningful boundaries use TypeScript with strict checking; old JSX remains to avoid churn. DOMPurify is shared by every legacy rich-HTML sink and editor insertion. Sanitization is mandatory even for old database content.
 
@@ -53,7 +53,9 @@ multi-instance deployment must move them to a shared or edge limiter.
 
 ## Notification operations
 
-Configure `RESEND_API_KEY` and `RESEND_FROM_ADDRESS` only in backend runtime secrets. The email
+Outbound email is intentionally deferred for v1. Keep the email preference, outbox, and Resend
+adapter for later. To re-enable it, set `EMAIL_DELIVERY_ENABLED=true`, provide `RESEND_API_KEY`
+and `RESEND_FROM_EMAIL`/`RESEND_FROM_ADDRESS`, and use a verified sending domain. The email
 contains no memory title, note, or photo; it says that a memory is waiting and links to Tandem.
 Run `cd backend; python -m app.workers.anniversary` from a scheduler at least hourly. Set
 `MIGRATION_DATABASE_URL` to the separately controlled worker/service connection (the process

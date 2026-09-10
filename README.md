@@ -136,7 +136,8 @@ CI gates current source with Gitleaks and the Python guard, runs frontend tests/
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google OIDC client configuration; required only when enabling Google login |
 | `FRONTEND_URL`, `APPLICATION_URL` | Same-origin post-login redirect/application URL; `APPLICATION_URL` is preferred for Render |
 | `API_PROXY_TARGET` | Vite **process environment** override; defaults to http://127.0.0.1:8000, Compose uses http://backend:8000 |
-| `RESEND_FROM_EMAIL` | Verified Resend sender; `RESEND_FROM_ADDRESS` remains accepted as a compatibility alias |
+| `EMAIL_DELIVERY_ENABLED` | Global outbound email capability; defaults to `false` for the v1 launch |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Required only when `EMAIL_DELIVERY_ENABLED=true`; `RESEND_FROM_ADDRESS` remains accepted as a compatibility alias |
 
 No `VITE_*` values are exposed. Google login uses server-side sessions and does not store provider
 access tokens. A fresh Compose volume creates the migration/runtime role split; an existing volume

@@ -15,9 +15,11 @@ years. On Feb 28 of a non-leap year, a Feb 28 memory and a Feb 29 memory may bot
 
 ## Preferences and outbox
 
-Users can enable/disable On This Day, anniversary email, choose their timezone, and choose a
-local delivery hour. Candidate generation checks these settings and current membership. It
-inserts `notification_outbox` rows in a PostgreSQL transaction with a unique key:
+Users can enable/disable On This Day, choose their timezone, and choose a local delivery hour.
+The anniversary email preference remains stored for future re-enablement, but outbound email is
+globally disabled for Tandem v1. Candidate generation always creates deduplicated in-app
+notifications for eligible anniversaries. It inserts `notification_outbox` rows only when
+`EMAIL_DELIVERY_ENABLED=true`, using a unique key:
 `anniversary:tandem:user:memory:anniversary-year:email`. Re-running the worker is safe at the
 database level.
 
@@ -36,7 +38,8 @@ python -m app.workers.anniversary
 ```
 
 Production should schedule this command hourly (or more frequently if delivery-hour precision
-matters), with `DATABASE_URL` set to the dedicated non-bypass-RLS runtime role and Resend secrets
-available only to that process. `MIGRATION_DATABASE_URL` is for Alembic pre-deploy runs, never the
-worker. Tests inject a deterministic clock
+matters), with `DATABASE_URL` set to the dedicated non-bypass-RLS runtime role. At launch,
+`EMAIL_DELIVERY_ENABLED=false` means the worker generates in-app notifications only and does not
+load a Resend adapter. `MIGRATION_DATABASE_URL` is for Alembic pre-deploy runs, never the worker.
+Tests inject a deterministic clock
 and fake adapter; they never call Google, Resend, TMDb, Geoapify, or S3.
