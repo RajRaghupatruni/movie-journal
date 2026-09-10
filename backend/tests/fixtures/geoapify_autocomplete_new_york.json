@@ -1,0 +1,27 @@
+{
+  "results": [
+    {
+      "datasource": {
+        "sourcename": "openstreetmap",
+        "attribution": "© OpenStreetMap contributors",
+        "license": "Open Database License"
+      },
+      "name": "New York",
+      "city": "New York",
+      "county": "New York County",
+      "state": "New York",
+      "country": "United States of America",
+      "country_code": "us",
+      "lon": -74.006,
+      "lat": 40.7128,
+      "formatted": "New York, New York County, New York, United States of America",
+      "address_line1": "New York",
+      "address_line2": "New York County, New York, United States of America",
+      "result_type": "city",
+      "place_id": "51f02e7c8f4f1b274059dc0a96dfac6c"
+    }
+  ],
+  "query": {
+    "text": "New York"
+  }
+}
