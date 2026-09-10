@@ -184,8 +184,22 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       const signedUrl = new URL(media[0].url);
       const anonymous = await playwrightRequest.newContext();
       try {
+        let presigned;
+        try {
+          // Keep the complete capability URL inside the request; never include it in diagnostics.
+          presigned = await anonymous.get(media[0].url);
+        } catch {
+          throw new Error('Presigned media request failed before a response was received');
+        }
+        expect(presigned.status(), 'presigned media status').toBe(200);
+        const presignedBytes = await presigned.body();
+        expect(presignedBytes.length, 'presigned media body length').toBeGreaterThan(0);
+        const responseContentType = (presigned.headers()['content-type'] || '').split(';', 1)[0].toLowerCase();
+        expect(responseContentType, 'presigned media content type').toMatch(/^image\//);
+        expect(responseContentType).toBe(String(media[0].content_type || '').toLowerCase());
+
         const rawObject = await anonymous.get(`${signedUrl.origin}${signedUrl.pathname}`);
-        expect([400, 403, 404]).toContain(rawObject.status());
+        expect([400, 401, 403, 404], 'unsigned private object denial status').toContain(rawObject.status());
       } finally {
         await anonymous.dispose();
       }
