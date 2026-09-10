@@ -1,8 +1,9 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { AddMemoryLauncher, AnniversaryHero, Sidebar } from './components.jsx'
+import { AddMemoryLauncher, AnniversaryHero, AvatarStack, Sidebar } from './components.jsx'
 import { demoSnapshot, getAnniversaryCopy, groupMemoriesByYear, launcherChoices, navItems } from '../../data/tandemData'
+import { formatParticipantNames } from './presentation'
 
 describe('Tandem presentation contracts', () => {
   it('exposes the desktop navigation in the intended order', () => {
@@ -33,5 +34,20 @@ describe('Tandem presentation contracts', () => {
     expect(markup).toContain('role="dialog"')
     expect(markup).toContain('aria-modal="true"')
     expect(markup).toContain('What are we remembering?')
+  })
+
+  it('renders any one-to-five member participant stack', () => {
+    const members = Array.from({ length: 5 }, (_, index) => ({
+      id: `member-${index}`,
+      name: `Member ${index + 1}`,
+      initials: `M${index + 1}`,
+      color: '#8f4357',
+    }))
+    const markup = renderToStaticMarkup(createElement(AvatarStack, { members, size: 'large' }))
+    expect(markup).toContain('Member 1, Member 2, Member 3, Member 4, and Member 5')
+    expect((markup.match(/class="avatar"/g) || []).length).toBe(5)
+    expect(formatParticipantNames([])).toBe('No participants selected')
+    expect(formatParticipantNames(['Member 1'])).toBe('Member 1')
+    expect(formatParticipantNames(['Member 1', 'Member 2'])).toBe('Member 1 and Member 2')
   })
 })

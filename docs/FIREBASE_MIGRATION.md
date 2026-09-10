@@ -1,57 +1,19 @@
-# Firebase migration boundary
+# Firebase retirement decision
 
-No Firebase dependency is used by the new memory API. The legacy Firebase consumers remain
-in the repository until their watched/watchlist and historical event data have an approved,
-repeatable import path.
+Firebase migration was deliberately abandoned for this product-cleanup milestone. Legacy
+Firebase data is disposable, PostgreSQL starts fresh, and PostgreSQL is the sole application
+source of truth. No import, dual-write, compatibility, or Firebase migration script is planned.
 
-## Integration/media milestone status
+The active application uses authenticated FastAPI endpoints backed by PostgreSQL for Tandems,
+memberships, invitations, memories, participants, tags, and media. TMDb and Geoapify are
+backend-owned capture providers. The old Firestore event, watched-movie, and watchlist flows
+were removed from active production code because their useful memory capture path has been
+replaced and no legacy data needs to be preserved.
 
-The new Keepsake Add Memory workflow is now the active capture path. Movie selection uses the
-backend TMDb adapter, place selection uses the backend Geoapify adapter, and photos use the
-authenticated private S3-compatible media API. The old `src/components/MovieSearch.jsx`,
-`src/components/FoursquareSearch.jsx`, and `src/components/AddEventModal.jsx` are retained only
-as deprecated migration references and are not imported by the production Keepsake shell.
-No new movie, place, or media data is written to Firebase. Existing Firebase watched/watchlist
-and legacy event consumers remain until the approved import/replacement gate below is complete.
+Watchlist remains a useful Explore concept, but its Firebase implementation is intentionally
+not retained. A small tandem-scoped PostgreSQL watchlist is a documented P1 follow-up; it must
+include a TMDb snapshot, `added_by`, `added_at`, optional note, remove, authorization/RLS, and
+an explicit conversion path to a movie memory.
 
-## Collections discovered
-
-- `tandems/{tandemId}/events/{eventId}`: title, `category` (Movie/Place/Trip/Activity), date,
-  free-text participant names, rating, review/notes, optional location snapshot, source, and
-  created/updated timestamps.
-- `watchedMovies/{id}`: TMDb ID/title/poster, watched date, rating, and review HTML.
-- `watchlistMovies/{id}`: TMDb ID/title/poster, year, and added timestamp.
-
-The old root movie collections have no Tandem scope in the client code. They must not be
-assigned to a Tandem by guessing from the current UI. Ownership and the intended Tandem must
-be approved by the data owner first.
-
-## Safe mapping
-
-Historical event records map to `memories` after review: category is lower-cased into the
-canonical enum, the event date becomes `local_date`, the original location becomes a manual
-place/trip snapshot, and notes are migrated as plain text only after the existing safe review
-policy is applied. Free-text participant names are not identities; preserve them in a review
-report until each person is explicitly mapped to a current Tandem member. Tags are optional
-and should be normalized with the PostgreSQL API contract.
-
-Watched movies and watchlist entries are separate future product tables, not silently folded
-into memories. Preserve provider IDs, original Firestore IDs, and source timestamps in an
-import mapping table/report. Do not relabel Foursquare data as Geoapify or invent TMDb data
-for manual records.
-
-## What can be dropped
-
-Malformed records with no approved Tandem ownership, records whose identity mapping cannot be
-verified, duplicate provider snapshots after an owner-approved deduplication decision, and
-legacy rich HTML that cannot pass the plain-text/safe-review policy may be excluded. Every
-exclusion should appear in a dry-run report; nothing should be deleted from Firebase as part
-of this milestone.
-
-## Deletion gate
-
-It is safe to remove Firebase SDK dependencies only after: an owner-approved read-only export
-exists; a dry-run import reports counts and rejects; the import is repeatable using stable
-source IDs; watched/watchlist and event screens have PostgreSQL replacements; reviews have
-passed sanitization; and a backup/rollback decision is recorded. Until then, legacy provider
-and Firebase code is intentionally retained as a migration boundary.
+Historical audit and planning documents may mention Firebase or Foursquare as repository history.
+They do not describe active runtime behavior or create a migration obligation.

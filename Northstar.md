@@ -1,4 +1,5 @@
-> Historical planning notes. Follow `docs/TARGET_ARCHITECTURE.md` and the ordered migration tasks in `docs/REPOSITORY_AUDIT.md`; the old feature prompts below are not current instructions.
+> Historical planning notes. Follow `docs/TARGET_ARCHITECTURE.md`, `docs/FIREBASE_MIGRATION.md`,
+> and `docs/ROADMAP.md`; the old feature prompts below are not current instructions.
 
 Got it. If typing real place names like "Starbucks" or "Empire State Building" isn't returning results even after setting `near=New York`, we’ll address that in the next patch. But before that, let’s organize our **remaining steps for Module 3** so you have a clear picture.
 

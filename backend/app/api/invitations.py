@@ -1,10 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.constants import MAX_TANDEM_MEMBERS
 from app.db.session import get_db, set_current_user_id
 from app.models import Invitation, Tandem, TandemMember, User
 from app.schemas.auth import InvitationCreate, InvitationCreated, InvitationSummary
@@ -35,6 +36,15 @@ def _find_invitation(db: Session, reference: str, *, lock: bool = False) -> Invi
     return invitation
 
 
+def _lock_tandem_capacity(db: Session, tandem_id) -> None:
+    """Serialize capacity changes without weakening invitee RLS visibility."""
+
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:tandem_id, 0))"),
+        {"tandem_id": str(tandem_id)},
+    )
+
+
 @router.post(
     "/api/tandems/{tandem_id}/invitations",
     response_model=InvitationCreated,
@@ -53,14 +63,35 @@ def create_invitation(
     if not 1 <= payload.expires_in_days <= 30:
         raise HTTPException(status_code=422, detail="expires_in_days must be between 1 and 30")
     now = datetime.now(UTC)
-    existing = db.scalar(
+    _lock_tandem_capacity(db, access.tandem.id)
+    tandem = db.scalar(
+        select(Tandem).where(Tandem.id == access.tandem.id).with_for_update()
+    )
+    if tandem is None:
+        raise HTTPException(status_code=404, detail="Tandem not found")
+
+    member_count = int(db.scalar(select(func.app.tandem_member_count(tandem.id))) or 0)
+    if member_count >= MAX_TANDEM_MEMBERS:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Tandem is full; it can have at most {MAX_TANDEM_MEMBERS} members",
+        )
+
+    pending_invitations = db.scalars(
         select(Invitation)
         .where(
-            Invitation.tandem_id == access.tandem.id,
-            Invitation.invited_email == invited_email,
+            Invitation.tandem_id == tandem.id,
             Invitation.status == "PENDING",
         )
         .with_for_update()
+    ).all()
+    existing = next(
+        (
+            invitation
+            for invitation in pending_invitations
+            if invitation.invited_email == invited_email
+        ),
+        None,
     )
     if existing is not None:
         if existing.expires_at > now:
@@ -68,9 +99,20 @@ def create_invitation(
         existing.status = "EXPIRED"
         existing.responded_at = now
 
+    active_pending_count = sum(
+        invitation.expires_at > now
+        for invitation in pending_invitations
+        if invitation is not existing
+    )
+    if member_count + active_pending_count >= MAX_TANDEM_MEMBERS:
+        raise HTTPException(
+            status_code=409,
+            detail="Tandem has no room reserved for another invitation",
+        )
+
     reference = new_secret()
     invitation = Invitation(
-        tandem_id=access.tandem.id,
+        tandem_id=tandem.id,
         invited_email=invited_email,
         invited_by=current_user.id,
         token_hash=hash_secret(reference),
@@ -86,7 +128,7 @@ def create_invitation(
     set_current_user_id(db, str(current_user.id))
     db.refresh(invitation)
     return InvitationCreated(
-        **_summary(invitation, access.tandem.name).model_dump(),
+        **_summary(invitation, tandem.name).model_dump(),
         reference=reference,
     )
 
@@ -129,12 +171,15 @@ def _respond_to_invitation(
         invitation.responded_at = now
         db.commit()
         raise HTTPException(status_code=410, detail="Invitation has expired")
-    # The recipient check must happen before FOR UPDATE: PostgreSQL's UPDATE USING
-    # policy would otherwise hide a row belonging to a different email as a 404.
-    invitation = _find_invitation(db, safe_reference, lock=True)
+    # A transaction-scoped advisory lock keyed by Tandem serializes concurrent
+    # acceptances while preserving the narrow RLS visibility granted to invitees.
+    # This is the authoritative membership-capacity check; invitation creation
+    # is only an early guard.
+    _lock_tandem_capacity(db, invitation.tandem_id)
     tandem = db.get(Tandem, invitation.tandem_id)
     if tandem is None:
         raise HTTPException(status_code=404, detail="Invitation not found")
+    invitation = _find_invitation(db, safe_reference, lock=True)
     if invitation.status != "PENDING":
         raise HTTPException(status_code=409, detail="Invitation is no longer pending")
 
@@ -147,6 +192,14 @@ def _respond_to_invitation(
         )
         if existing_member is not None:
             raise HTTPException(status_code=409, detail="User is already a tandem member")
+        member_count = int(
+            db.scalar(select(func.app.tandem_member_count(invitation.tandem_id))) or 0
+        )
+        if member_count >= MAX_TANDEM_MEMBERS:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Tandem is full; it can have at most {MAX_TANDEM_MEMBERS} members",
+            )
         db.add(
             TandemMember(
                 tandem_id=invitation.tandem_id,

@@ -28,5 +28,5 @@ and category. These are historical values: Timeline, search over saved memories,
 Detail do not call either provider. Provider outages return a controlled error and manual movie
 or place entry remains available.
 
-Automated tests use mocked HTTP responses and never call live providers. Rotate any old TMDb and
-Foursquare credentials before configuring the new backend secrets.
+Automated tests use mocked HTTP responses and never call live providers. Rotate any old TMDb
+credentials before configuring the new backend secrets.

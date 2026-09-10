@@ -84,10 +84,7 @@ def test_memory_vertical_slice_is_member_scoped_and_versioned(memory_clients):
         memory_id = memory["id"]
         assert memory["version"] == 1
         assert memory["tags"] == ["nyc"]
-        assert {participant["user_id"] for participant in memory["participants"]} == {
-            str(user_a),
-            str(user_b),
-        }
+        assert {participant["user_id"] for participant in memory["participants"]} == {str(user_b)}
 
         assert b.get(f"/api/tandems/{tandem_id}/memories").json()["items"][0]["id"] == memory_id
         updated = b.patch(

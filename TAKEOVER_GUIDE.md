@@ -1,5 +1,8 @@
 # Tandem Repo Takeover Guide
 
+> Historical guide from before `tandem/product-cleanup`. Its Firebase/Foursquare/watchlist
+> implementation details are retained for context only; they are not active runtime paths.
+
 > Historical pre-foundation snapshot. Current setup, security status and migration priorities are in `README.md`, `docs/REPOSITORY_AUDIT.md` and `docs/TARGET_ARCHITECTURE.md`. Review those before following the old provider-key or deployment guidance below.
 
 ## What This Repo Is

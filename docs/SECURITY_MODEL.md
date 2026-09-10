@@ -1,8 +1,8 @@
 # Tandem security model
 
 This milestone establishes the security boundary for Tandem's invite-only application. The
-legacy Firebase UI remains in place, but these backend tables and endpoints do not trust its
-client-side state or any user-supplied tandem identifier.
+active React shell uses these PostgreSQL-backed endpoints and does not trust client-side state
+or any user-supplied tandem identifier.
 
 ## Authentication and sessions
 
@@ -31,6 +31,11 @@ membership in the same transaction. Members have either `OWNER` or `MEMBER` role
 update a tandem and invite/remove ordinary members; ordinary members can read tandem data and
 leave. The final owner cannot leave, and ownership transfer or tandem deletion must exist
 before that invariant can be relaxed.
+
+Each Tandem supports up to five accepted members in v1. The application constant
+`MAX_TANDEM_MEMBERS` is enforced at invitation acceptance while holding a PostgreSQL row lock
+on the Tandem. Invitation creation also reserves capacity against active pending invitations,
+but acceptance remains the authoritative check.
 
 Every private route uses centralized FastAPI dependencies: `get_current_user`,
 `require_tandem_member`, and `require_tandem_owner`. Integration search requires an authenticated

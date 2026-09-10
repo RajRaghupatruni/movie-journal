@@ -1,15 +1,25 @@
 import { useEffect, useRef } from 'react'
 import {
   ArrowLeft, ArrowRight, Bookmark, CalendarDays, ChevronDown, ChevronLeft, ChevronRight,
-  Film, Grid2X2, Heart, Leaf, Map, Menu, MoreHorizontal, Pin, Plus, Search, Settings2,
+  Film, Heart, Leaf, Map, MoreHorizontal, Pin, Plus, Search, Settings2,
   Sparkles, Star, Sun, Tag, History as TimelineIcon, Users, X,
 } from 'lucide-react'
 import { formatMemoryDate, launcherChoices, memoryTypeLabels, navItems } from '../../data/tandemData'
+import { formatParticipantNames, memberColor } from './presentation'
 
 const iconMap = { sun: Sun, timeline: TimelineIcon, search: Search, calendar: CalendarDays }
 const launcherIconMap = { film: Film, pin: Pin, map: Map, sparkles: Sparkles, plus: Plus }
 
-export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tandem' }) {
+function CompactMemberStack({ members, tandemName }) {
+  const displayMembers = members.length
+    ? members
+    : [{ id: 'tandem', display_name: tandemName }]
+  return <span className="mini-avatar-stack" aria-label={`${tandemName} members`}>
+    {displayMembers.map((member, index) => <span className="mini-avatar" key={member.user_id || member.id} style={{ backgroundColor: memberColor(index) }} title={member.display_name}>{member.display_name.slice(0, 2).toUpperCase()}</span>)}
+  </span>
+}
+
+export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tandem', members = [] }) {
   return (
     <aside className="sidebar" aria-label="Primary navigation">
       <div className="brand-lockup">
@@ -27,7 +37,7 @@ export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tand
       </nav>
       <div className="sidebar-lower">
         <div className="nav-section-label">Your tandem</div>
-        <button className="tandem-mini-switcher" onClick={() => onNavigate('/tandem')}><span className="mini-avatar avatar-berry">{tandemName[0] || 'T'}</span><span className="mini-avatar avatar-clay">·</span><span className="tandem-mini-name">{tandemName}</span><ChevronDown size={15} /></button>
+        <button className="tandem-mini-switcher" onClick={() => onNavigate('/tandem')}><CompactMemberStack members={members} tandemName={tandemName} /><span className="tandem-mini-name">{tandemName}</span><ChevronDown size={15} /></button>
         <a href="/tandem" className="nav-item" onClick={(event) => { event.preventDefault(); onNavigate('/tandem') }}><Users size={18} /><span>Our tandem</span></a>
         <div className="sidebar-rule" />
         <button className="sidebar-settings"><Settings2 size={17} /><span>Settings</span></button>
@@ -37,20 +47,20 @@ export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tand
   )
 }
 
-export function TopBar({ path, onNavigate, query, onQueryChange, tandemName = 'Your tandem', currentUserName = 'You' }) {
+export function TopBar({ path, onNavigate, query, onQueryChange, tandemName = 'Your tandem', currentUserName = 'You', members = [] }) {
   const title = path === '/' ? 'Today' : path.slice(1).split('/')[0].replace(/-/g, ' ')
   return <header className="topbar">
     <div className="topbar-context"><span className="context-kicker">{tandemName}</span><span className="context-slash">/</span><span className="context-page">{title}</span></div>
     <div className="topbar-actions">
       <label className="top-search"><Search size={16} /><span className="sr-only">Search memories</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onNavigate(`/explore${query ? `?q=${encodeURIComponent(query)}` : ''}`) }} placeholder="Search memories" /><span className="search-key">⌘ K</span></label>
-      <button className="top-tandem-switcher" onClick={() => onNavigate('/tandem')}><span className="mini-avatar avatar-berry">{tandemName[0] || 'T'}</span><span className="mini-avatar avatar-clay">·</span><span>{tandemName}</span><ChevronDown size={15} /></button>
+      <button className="top-tandem-switcher" onClick={() => onNavigate('/tandem')}><CompactMemberStack members={members} tandemName={tandemName} /><span>{tandemName}</span><ChevronDown size={15} /></button>
       <button className="top-avatar" aria-label="Open account settings" onClick={() => onNavigate('/tandem')}>{currentUserName.slice(0, 2).toUpperCase()}</button>
     </div>
   </header>
 }
 
-export function AppShell({ children, path, onNavigate, onAddMemory, query, onQueryChange, tandemName, currentUserName }) {
-  return <div className="app-frame"><Sidebar path={path} onNavigate={onNavigate} onAddMemory={onAddMemory} tandemName={tandemName} currentUserName={currentUserName} /><div className="app-main"><TopBar path={path} onNavigate={onNavigate} query={query} onQueryChange={onQueryChange} tandemName={tandemName} currentUserName={currentUserName} /><main className="main-canvas">{children}</main></div></div>
+export function AppShell({ children, path, onNavigate, onAddMemory, query, onQueryChange, tandemName, currentUserName, tandemMembers = [] }) {
+  return <div className="app-frame"><Sidebar path={path} onNavigate={onNavigate} onAddMemory={onAddMemory} tandemName={tandemName} members={tandemMembers} /><div className="app-main"><TopBar path={path} onNavigate={onNavigate} query={query} onQueryChange={onQueryChange} tandemName={tandemName} currentUserName={currentUserName} members={tandemMembers} /><main className="main-canvas">{children}</main></div></div>
 }
 
 export function PageHeader({ eyebrow, title, description, action, children }) {
@@ -62,8 +72,8 @@ export function SectionHeader({ eyebrow, title, action, onAction }) {
 }
 
 export function AvatarStack({ members, size = 'normal' }) {
-  return <div className={`avatar-stack avatar-stack-${size}`} aria-label={`${members.map((member) => member.name).join(' and ')}`}>
-    {members.map((member) => <span className="avatar" key={member.id} style={{ backgroundColor: member.color }} title={member.name}>{member.initials}</span>)}
+  return <div className={`avatar-stack avatar-stack-${size}`} aria-label={formatParticipantNames(members.map((member) => member.name))}>
+    {members.map((member, index) => <span className="avatar" key={member.id} style={{ backgroundColor: member.color || memberColor(index) }} title={member.name}>{member.initials}</span>)}
   </div>
 }
 
@@ -100,7 +110,7 @@ export function SkeletonCard() {
 export function AnniversaryHero({ memory, copy, onOpen, onAddMemory }) {
   return <section className={`anniversary-hero ${copy.fallback ? 'anniversary-hero-fallback' : ''}`}>
     <div className="hero-image-wrap">{memory ? <img src={memory.image} alt={memory.imageAlt} /> : <div className="hero-fallback-pattern"><span>✦</span><span>✧</span><span>·</span></div>}<div className="hero-image-overlay" /><div className="hero-date-stamp"><span className="stamp-day">09</span><span className="stamp-month">SEP<br />2026</span></div></div>
-    <div className="hero-copy"><div className="hero-copy-top"><span className="eyebrow hero-eyebrow">{copy.eyebrow}</span><span className="hero-sparkle">✦</span></div><h2>{copy.title}</h2><p className="hero-excerpt">{copy.excerpt}</p>{memory && <div className="hero-meta"><span><Pin size={14} /> {memory.location}</span><span><Users size={14} /> With {memory.participants.join(' & ')}</span></div>}<div className="hero-actions">{memory ? <button className="button button-light" onClick={() => onOpen(memory.id)}>Open memory <ArrowRight size={15} /></button> : <button className="button button-light" onClick={onAddMemory}>Add a memory <Plus size={15} /></button>}<button className="hero-save" aria-label="Save this memory"><Bookmark size={17} /></button></div></div>
+    <div className="hero-copy"><div className="hero-copy-top"><span className="eyebrow hero-eyebrow">{copy.eyebrow}</span><span className="hero-sparkle">✦</span></div><h2>{copy.title}</h2><p className="hero-excerpt">{copy.excerpt}</p>{memory && <div className="hero-meta"><span><Pin size={14} /> {memory.location}</span><span><Users size={14} /> With {formatParticipantNames(memory.participants)}</span></div>}<div className="hero-actions">{memory ? <button className="button button-light" onClick={() => onOpen(memory.id)}>Open memory <ArrowRight size={15} /></button> : <button className="button button-light" onClick={onAddMemory}>Add a memory <Plus size={15} /></button>}<button className="hero-save" aria-label="Save this memory"><Bookmark size={17} /></button></div></div>
   </section>
 }
 
@@ -118,7 +128,7 @@ export function AddMemoryLauncher({ open, onClose, onChoose }) {
 }
 
 export function MemoryDetail({ memory, onBack, onAddMemory, onEdit, onDelete }) {
-  return <div className="detail-page"><button className="back-link" onClick={onBack}><ArrowLeft size={15} /> Back to {memory.type === 'movie' ? 'explore' : 'timeline'}</button><div className="detail-layout"><div><div className="detail-media"><img src={memory.image} alt={memory.imageAlt} /><span className="detail-media-label">{memoryTypeLabels[memory.type]} · {new Date(`${memory.date}T12:00:00`).getFullYear()}</span></div>{memory.media?.length > 1 && <div className="detail-gallery" aria-label="Memory photos">{memory.media.slice(1).map((media) => <img key={media.id} src={media.url || memory.image} alt="" loading="lazy" />)}</div>}</div><article className="detail-copy"><div className="eyebrow">{formatMemoryDate(memory.date)}</div><div className="detail-heading-row"><h1>{memory.title}</h1><div className="detail-actions"><button className="button button-quiet" onClick={onEdit}>Edit</button><button className="button button-quiet button-danger" onClick={onDelete}>Delete</button></div></div>{memory.location && <div className="detail-location"><Pin size={16} /> {memory.location}</div>}<p className="detail-excerpt">{memory.excerpt}</p>{memory.notes && <blockquote>{memory.notes}</blockquote>}<div className="detail-divider" /><div className="detail-meta-grid"><div><span>With</span><strong>{memory.participants.length ? memory.participants.join(' & ') : 'Just us'}</strong></div>{memory.rating && <div><span>Rating</span><strong className="detail-rating"><Star size={15} fill="currentColor" /> {memory.rating}/10</strong></div>}<div><span>Added</span><strong>{memory.createdByName || 'A tandem member'}</strong></div></div><div className="tag-row">{memory.tags.map((tag) => <span className="tag" key={tag}><Tag size={12} />{tag}</span>)}</div><button className="button button-primary detail-add" onClick={onAddMemory}><Plus size={16} /> Add another memory</button></article></div></div>
+  return <div className="detail-page"><button className="back-link" onClick={onBack}><ArrowLeft size={15} /> Back to {memory.type === 'movie' ? 'explore' : 'timeline'}</button><div className="detail-layout"><div><div className="detail-media"><img src={memory.image} alt={memory.imageAlt} /><span className="detail-media-label">{memoryTypeLabels[memory.type]} · {new Date(`${memory.date}T12:00:00`).getFullYear()}</span></div>{memory.media?.length > 1 && <div className="detail-gallery" aria-label="Memory photos">{memory.media.slice(1).map((media) => <img key={media.id} src={media.url || memory.image} alt="" loading="lazy" />)}</div>}</div><article className="detail-copy"><div className="eyebrow">{formatMemoryDate(memory.date)}</div><div className="detail-heading-row"><h1>{memory.title}</h1><div className="detail-actions"><button className="button button-quiet" onClick={onEdit}>Edit</button><button className="button button-quiet button-danger" onClick={onDelete}>Delete</button></div></div>{memory.location && <div className="detail-location"><Pin size={16} /> {memory.location}</div>}<p className="detail-excerpt">{memory.excerpt}</p>{memory.notes && <blockquote>{memory.notes}</blockquote>}<div className="detail-divider" /><div className="detail-meta-grid"><div><span>Participants</span><strong>{formatParticipantNames(memory.participants)}</strong></div>{memory.rating && <div><span>Rating</span><strong className="detail-rating"><Star size={15} fill="currentColor" /> {memory.rating}/10</strong></div>}<div><span>Added</span><strong>{memory.createdByName || 'A tandem member'}</strong></div></div><div className="tag-row">{memory.tags.map((tag) => <span className="tag" key={tag}><Tag size={12} />{tag}</span>)}</div><button className="button button-primary detail-add" onClick={onAddMemory}><Plus size={16} /> Add another memory</button></article></div></div>
 }
 
 export function MonthSwitcher({ label, onPrevious, onNext }) {
