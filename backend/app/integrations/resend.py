@@ -23,6 +23,8 @@ class ResendEmailAdapter:
         self.timeout = settings.provider_timeout_seconds
 
     def send(self, *, recipient: str, subject: str, html: str, text: str) -> str:
+        if not self.settings.email_delivery_enabled:
+            raise EmailDeliveryError("Email delivery is disabled", transient=False)
         if self.settings.app_env != "production" and not self.settings.allow_non_production_emails:
             raise EmailDeliveryError("Non-production email delivery is disabled", transient=False)
         if not self.api_key or not self.from_address:

@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     media_max_bytes: int = 10 * 1024 * 1024
     media_max_dimension: int = 2400
     media_max_count: int = 10
+    email_delivery_enabled: bool = False
     resend_api_key: SecretStr | None = None
     allow_non_production_emails: bool = False
     resend_from_address: str | None = Field(
@@ -123,9 +124,14 @@ class Settings(BaseSettings):
             "S3_ACCESS_KEY_ID": self.s3_access_key_id,
             "S3_SECRET_ACCESS_KEY": self.s3_secret_access_key,
             "S3_REGION": self.s3_region,
-            "RESEND_API_KEY": self.resend_api_key,
-            "RESEND_FROM_EMAIL/RESEND_FROM_ADDRESS": self.resend_from_address,
         }
+        if self.email_delivery_enabled:
+            required.update(
+                {
+                    "RESEND_API_KEY": self.resend_api_key,
+                    "RESEND_FROM_EMAIL/RESEND_FROM_ADDRESS": self.resend_from_address,
+                }
+            )
         missing = [name for name, value in required.items() if not configured(value)]
         if missing:
             raise ValueError("production configuration is missing: " + ", ".join(missing))

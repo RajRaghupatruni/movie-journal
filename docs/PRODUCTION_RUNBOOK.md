@@ -119,7 +119,12 @@ email body.
    side because the frontend must not expose provider credentials.
 3. Put it in Render as `GEOAPIFY_API_KEY`. Do not configure or reintroduce Foursquare.
 
-## 6. Resend
+## 6. Resend (deferred for v1)
+
+Outbound email is intentionally disabled at the Tandem v1 launch. Do not add Resend secrets to
+the Render web service or hourly cron job while `EMAIL_DELIVERY_ENABLED=false`; the cron still
+runs because it generates in-app On This Day notifications. The email preference, outbox, and
+adapter remain in the codebase for a later re-enable.
 
 1. In Resend, add the sending domain and complete its DNS verification (SPF/DKIM; publish the
    recommended DMARC policy for the domain).
@@ -159,13 +164,14 @@ S3_BUCKET=<private-b2-bucket>
 S3_ACCESS_KEY_ID=<bucket-key-id>
 S3_SECRET_ACCESS_KEY=<bucket-application-key>
 S3_REGION=<b2-region>
-RESEND_API_KEY=<resend-key>
-RESEND_FROM_EMAIL=<verified-sender>
+EMAIL_DELIVERY_ENABLED=false
 ```
 
-Leave `ALLOW_NON_PRODUCTION_EMAILS` unset/false outside a deliberately isolated email test. The
-adapter refuses delivery in development/test by default, even if a Resend key is accidentally
-present.
+Leave `ALLOW_NON_PRODUCTION_EMAILS` unset/false outside a deliberately isolated email test. To
+later enable outbound email, set `EMAIL_DELIVERY_ENABLED=true` and add both `RESEND_API_KEY` and
+`RESEND_FROM_EMAIL` (or the compatibility alias `RESEND_FROM_ADDRESS`) for a verified sending
+domain; production configuration rejects the launch if either credential is missing. The adapter
+refuses delivery in development/test by default, even if a Resend key is accidentally present.
 
 Use Render’s secret input for every angle-bracket secret. `MIGRATION_DATABASE_URL` is needed by
 the pre-deploy command and is not used by the web runtime. The service’s runtime calls
@@ -190,9 +196,10 @@ The Blueprint schedules the existing bounded worker hourly with:
 python -m app.workers.anniversary
 ```
 
-Set the cron job’s `DATABASE_URL`, `DATABASE_RUNTIME_ROLE`, `APPLICATION_URL`, and Resend
-variables to the same production values. The other provider/B2 variables are included so the
-strict production settings contract remains identical; the worker does not call those providers.
+Set the cron job’s `DATABASE_URL`, `DATABASE_RUNTIME_ROLE`, `APPLICATION_URL`, and
+`EMAIL_DELIVERY_ENABLED=false`. The other provider/B2 variables are included so the strict
+production settings contract remains identical; the worker does not call those providers or
+Resend at launch.
 Do not set `MIGRATION_DATABASE_URL` on the cron job. The worker uses `tandem_app` and its explicit
 `app.worker_mode` RLS policies. Its PostgreSQL unique idempotency key and claim-before-send
 transaction protect against duplicate generation; a process crash after Resend accepts a message
@@ -217,7 +224,7 @@ alembic current
 alembic check
 ```
 
-The expected head is `0013_security_hardening`. Never run migrations from FastAPI lifespan,
+The expected head is `0014_email_delivery_default`. Never run migrations from FastAPI lifespan,
 and never point `MIGRATION_DATABASE_URL` at the runtime role. Schema downgrades are not a routine
 rollback: future migrations may be destructive and application code is not necessarily backward
 compatible. For a bad application image, redeploy the previous image/commit without downgrading.
@@ -293,7 +300,7 @@ Implemented now:
 - members can hard-delete memories; media objects are deleted before metadata is committed;
 - members can delete individual photos;
 - owners can remove members and members can leave when ownership rules permit;
-- each user can disable On This Day resurfacing and anniversary email in Settings;
+- each user can disable On This Day resurfacing in Settings; outbound email is deferred for v1;
 - non-members receive the same 404-style Tandem boundary and cannot read private media.
 
 Not implemented yet and therefore a P0 follow-up before promising data-portability compliance:

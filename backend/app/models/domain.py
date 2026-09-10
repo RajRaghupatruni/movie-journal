@@ -59,7 +59,7 @@ class UserNotificationPreference(TimestampMixin, Base):
         Boolean, nullable=False, server_default="true", default=True
     )
     anniversary_email_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="true", default=True
+        Boolean, nullable=False, server_default="false", default=False
     )
     notification_hour: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="9", default=9

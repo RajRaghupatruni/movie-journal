@@ -56,14 +56,17 @@ the test. Record timestamps and the `X-Request-ID` for any failure.
 
 - [ ] In a controlled database branch or disposable test Tandem, create a memory represented by
   a prior date whose month/day is today in the user’s IANA timezone.
-- [ ] Keep anniversary notifications and email enabled; set the preferred hour to a testable hour.
+- [ ] Keep anniversary notifications enabled and set the preferred hour to a testable hour.
 - [ ] Verify Today shows the anniversary and that `nostalgia_eligible=false` suppresses it.
 - [ ] Manually run the exact worker command once from the Render cron image or trigger the cron:
   `python -m app.workers.anniversary`.
 - [ ] Confirm the Render cron log shows bounded counts and no credentials/content.
-- [ ] Confirm one privacy-preserving email arrives with only the generic CTA and application URL.
-- [ ] Run the worker again; confirm no duplicate outbox intent/email is generated for the same
-  tandem/user/memory/year/channel.
+- [ ] Confirm one deduplicated in-app On This Day notification appears in the notification center.
+- [ ] With `EMAIL_DELIVERY_ENABLED=false`, confirm no email outbox row is generated and no Resend
+  request is attempted.
+- [ ] If testing the future email path, enable the global flag with both Resend credentials and a
+  verified sending domain; then confirm the privacy-preserving email arrives with only the generic
+  CTA and application URL, and that a second worker run creates no duplicate outbox intent.
 - [ ] If testing Feb 29, verify the documented Feb 28 non-leap-year rule.
 
 ## Negative and failure paths
@@ -78,7 +81,8 @@ the test. Record timestamps and the `X-Request-ID` for any failure.
   confirm each is rejected without an object or partial media row.
 - [ ] Delete a memory; confirm its detail, Timeline entry, On This Day result, and media are no
   longer accessible.
-- [ ] Toggle anniversary email off; run the worker and confirm no new email intent is sent.
+- [ ] Confirm the email preference is not offered in launch Settings while global delivery is
+  disabled; the backend preference field remains available for a future re-enable.
 - [ ] Confirm state-changing requests from a foreign Origin are rejected in production, while
   same-origin UI actions work.
 - [ ] Inspect logs for the whole run: no notes, titles, email invitation references, session/OAuth
