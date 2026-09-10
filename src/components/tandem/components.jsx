@@ -40,7 +40,7 @@ export function Sidebar({ path, onNavigate, onAddMemory, tandemName = 'Your tand
         <button className="tandem-mini-switcher" onClick={() => onNavigate('/tandem')}><CompactMemberStack members={members} tandemName={tandemName} /><span className="tandem-mini-name">{tandemName}</span><ChevronDown size={15} /></button>
         <a href="/tandem" className="nav-item" onClick={(event) => { event.preventDefault(); onNavigate('/tandem') }}><Users size={18} /><span>Our tandem</span></a>
         <div className="sidebar-rule" />
-        <button className="sidebar-settings"><Settings2 size={17} /><span>Settings</span></button>
+        <button className="sidebar-settings" onClick={() => onNavigate('/settings')}><Settings2 size={17} /><span>Settings</span></button>
       </div>
       <div className="sidebar-footer"><span className="private-dot" />Private space <span className="footer-spacer" />v1.0</div>
     </aside>
@@ -107,9 +107,13 @@ export function SkeletonCard() {
   return <div className="skeleton-card" aria-label="Loading memory"><div className="skeleton skeleton-media" /><div className="skeleton skeleton-line wide" /><div className="skeleton skeleton-line" /><div className="skeleton skeleton-line short" /></div>
 }
 
-export function AnniversaryHero({ memory, copy, onOpen, onAddMemory }) {
+export function AnniversaryHero({ memory, copy, onOpen, onAddMemory, today = '2026-09-09' }) {
+  const date = new Date(`${today}T12:00:00`)
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
+  const year = date.getFullYear()
   return <section className={`anniversary-hero ${copy.fallback ? 'anniversary-hero-fallback' : ''}`}>
-    <div className="hero-image-wrap">{memory ? <img src={memory.image} alt={memory.imageAlt} /> : <div className="hero-fallback-pattern"><span>✦</span><span>✧</span><span>·</span></div>}<div className="hero-image-overlay" /><div className="hero-date-stamp"><span className="stamp-day">09</span><span className="stamp-month">SEP<br />2026</span></div></div>
+    <div className="hero-image-wrap">{memory ? <img src={memory.image} alt={memory.imageAlt} /> : <div className="hero-fallback-pattern"><span>✦</span><span>✧</span><span>·</span></div>}<div className="hero-image-overlay" /><div className="hero-date-stamp"><span className="stamp-day">{day}</span><span className="stamp-month">{month}<br />{year}</span></div></div>
     <div className="hero-copy"><div className="hero-copy-top"><span className="eyebrow hero-eyebrow">{copy.eyebrow}</span><span className="hero-sparkle">✦</span></div><h2>{copy.title}</h2><p className="hero-excerpt">{copy.excerpt}</p>{memory && <div className="hero-meta"><span><Pin size={14} /> {memory.location}</span><span><Users size={14} /> With {formatParticipantNames(memory.participants)}</span></div>}<div className="hero-actions">{memory ? <button className="button button-light" onClick={() => onOpen(memory.id)}>Open memory <ArrowRight size={15} /></button> : <button className="button button-light" onClick={onAddMemory}>Add a memory <Plus size={15} /></button>}<button className="hero-save" aria-label="Save this memory"><Bookmark size={17} /></button></div></div>
   </section>
 }

@@ -9,6 +9,9 @@ flowchart LR
   API -. later .-> Cache[Redis · bounded cache / rate limits]
   API --> Providers[TMDb · Geoapify]
   API --> Media[Private S3-compatible storage]
+  Scheduler[cron / hosted job] --> Worker[bounded anniversary worker]
+  Worker --> SQL
+  Worker --> Resend[Resend email API]
 ```
 
 ## Foundation choices
@@ -21,6 +24,8 @@ flowchart LR
 - Development CORS allows explicit local HTTP origins only, without credentialed requests. It is disabled in test/production. This is not the future auth configuration. Vite proxies `/api` to the backend; backend endpoints do not require frontend secrets.
 - Alembic owns schema evolution. `0001_foundation` is intentionally empty: only `alembic_version` exists after upgrade. No `create_all`, automatic startup migrations or data migration. Run migrations explicitly as a deployment/development step.
 - The first product slice uses one Tandem-scoped `memories` entity with strict category metadata, participant/tag joins, PostgreSQL full-text search, optimistic versions, append-only activity records, provider snapshots, and private processed media. PostgreSQL is authoritative; nostalgia anniversaries, Redis features, notifications, and realtime updates remain later milestones.
+- On This Day is a backend service over the represented `local_date`. It converts an injected/current instant into each requesting user's IANA timezone, matches earlier memories by local month/day, and applies the explicit Feb 29 rule: Feb 29 memories surface on Feb 29 in leap years and Feb 28 otherwise. The frontend never calculates eligibility.
+- Anniversary email intents use a PostgreSQL transactional outbox. A bounded `python -m app.workers.anniversary` process generates deterministic records, revalidates privacy before sending through Resend, and applies three-attempt exponential backoff. A crash after provider acceptance and before the database update can still result in an occasional duplicate; the database idempotency key prevents duplicate queued intents, not provider-side exactly-once delivery.
 - Docker Compose runs frontend, backend, PostgreSQL 16 and Redis 7, with loopback-only published ports and named PostgreSQL/Redis volumes. Redis uses AOF and is independently health-checked. Backend readiness and product behavior do not depend on Redis. Hosted S3-compatible storage is configured externally; MinIO is optional for local development/tests.
 - npm remains the frontend manager; Vite remains the build tool. New meaningful boundaries use TypeScript with strict checking; old JSX remains to avoid churn. DOMPurify is shared by every legacy rich-HTML sink and editor insertion. Sanitization is mandatory even for old database content.
 
@@ -45,12 +50,22 @@ Private media uses S3-compatible storage. The backend authorizes uploads/downloa
 
 Redis may later support expiring provider-response caches and bounded rate limits when justified. Define TTLs, size limits, failure behavior and privacy rules for every use. It will not be the source of truth, an event bus, a speculative job platform or a dependency for this milestone's product behavior.
 
+## Notification operations
+
+Configure `RESEND_API_KEY` and `RESEND_FROM_ADDRESS` only in backend runtime secrets. The email
+contains no memory title, note, or photo; it says that a memory is waiting and links to Tandem.
+Run `cd backend; python -m app.workers.anniversary` from a scheduler at least hourly. Set
+`MIGRATION_DATABASE_URL` to the separately controlled worker/service connection (the process
+falls back to `DATABASE_URL` for a deliberately simple deployment). The worker is intentionally
+bounded, so cron, GitHub Actions, or a hosted scheduled job can own scheduling without adding a
+queue service. Delivery is privacy-first and at-least-once at the provider boundary.
+
 ## Deliberate exclusions
 
 No data migration, UI redesign, PWA or mobile-app work in this milestone. No Firebase
 infrastructure, Kafka, Kubernetes, Celery, microservices, event sourcing, CQRS, Elasticsearch,
-GraphQL, On This Day, notifications, Redis caching, or WebSockets. Desktop-first does not require
-removing existing responsive CSS.
+GraphQL, Redis caching, or WebSockets. Desktop-first does not require removing existing responsive
+CSS.
 
 Follow the ordered migration tasks in [REPOSITORY_AUDIT.md](REPOSITORY_AUDIT.md#7-proposed-migration-map-and-exact-next-tasks). The old root planning documents are historical and do not override this architecture.
 

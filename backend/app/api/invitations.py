@@ -15,7 +15,9 @@ from app.services.authorization import TandemAccess, require_tandem_owner
 router = APIRouter(tags=["invitations"])
 
 
-def _summary(invitation: Invitation, tandem_name: str) -> InvitationSummary:
+def _summary(
+    invitation: Invitation, tandem_name: str, inviter_name: str | None = None
+) -> InvitationSummary:
     return InvitationSummary(
         id=invitation.id,
         tandem_id=invitation.tandem_id,
@@ -23,6 +25,7 @@ def _summary(invitation: Invitation, tandem_name: str) -> InvitationSummary:
         invited_email=invitation.invited_email,
         status=invitation.status,
         expires_at=invitation.expires_at,
+        inviter_name=inviter_name,
     )
 
 
@@ -150,7 +153,8 @@ def get_invitation(
         set_current_user_id(db, str(current_user.id))
     if normalize_email(current_user.email) != invitation.invited_email:
         raise HTTPException(status_code=403, detail="Invitation belongs to another email")
-    return _summary(invitation, tandem.name)
+    inviter = db.get(User, invitation.invited_by)
+    return _summary(invitation, tandem.name, inviter.display_name if inviter else None)
 
 
 def _respond_to_invitation(
@@ -215,7 +219,8 @@ def _respond_to_invitation(
     invitation.responded_at = now
     db.commit()
     set_current_user_id(db, str(current_user.id))
-    return _summary(invitation, tandem.name)
+    inviter = db.get(User, invitation.invited_by)
+    return _summary(invitation, tandem.name, inviter.display_name if inviter else None)
 
 
 @router.post("/api/invitations/{safe_reference}/accept", response_model=InvitationSummary)

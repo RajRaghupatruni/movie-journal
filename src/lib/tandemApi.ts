@@ -5,6 +5,14 @@ export interface ApiUser {
   email: string
   display_name: string
   avatar_url: string | null
+  timezone?: string
+}
+
+export interface ApiPreferences {
+  timezone: string
+  anniversary_notifications_enabled: boolean
+  anniversary_email_enabled: boolean
+  notification_hour: number
 }
 
 export interface ApiTandem {
@@ -45,6 +53,20 @@ export interface ApiMemory {
   participants: Array<Pick<ApiMember, 'user_id' | 'display_name' | 'email' | 'avatar_url'>>
   tags: string[]
   media: ApiMedia[]
+}
+
+export interface ApiAnniversary {
+  memory: ApiMemory
+  years_ago: number
+  original_date: string
+  anniversary_date: string
+}
+
+export interface ApiOnThisDay {
+  today: string
+  timezone: string
+  anniversaries: ApiAnniversary[]
+  fallback: ApiMemory | null
 }
 
 export interface ApiMedia {
@@ -139,7 +161,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const tandemApi = {
   me: () => request<ApiUser>('/api/me'),
   tandems: () => request<ApiTandem[]>('/api/me/tandems'),
+  createTandem: (input: { name: string; timezone: string }) => request<ApiTandem>('/api/tandems', { method: 'POST', body: JSON.stringify(input) }),
+  preferences: () => request<ApiPreferences>('/api/me/preferences'),
+  updatePreferences: (input: Partial<ApiPreferences>) => request<ApiPreferences>('/api/me/preferences', { method: 'PATCH', body: JSON.stringify(input) }),
+  invitation: (reference: string) => request<{ id: string; tandem_id: string; tandem_name: string; invited_email: string; status: string; expires_at: string; inviter_name?: string | null }>(`/api/invitations/${encodeURIComponent(reference)}`),
+  acceptInvitation: (reference: string) => request<{ tandem_id: string; tandem_name: string; status: string }>(`/api/invitations/${encodeURIComponent(reference)}/accept`, { method: 'POST' }),
   members: (tandemId: string) => request<ApiMember[]>(`/api/tandems/${tandemId}/members`),
+  onThisDay: (tandemId: string) => request<ApiOnThisDay>(`/api/tandems/${tandemId}/on-this-day`),
   memories: (tandemId: string, params: MemoryListParams = {}) => {
     const search = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== '') search.set(key, String(value)) })

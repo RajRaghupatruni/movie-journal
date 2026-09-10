@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     media_max_bytes: int = 10 * 1024 * 1024
     media_max_dimension: int = 2400
     media_max_count: int = 10
+    resend_api_key: SecretStr | None = None
+    resend_from_address: str | None = None
 
     @field_validator("provider_timeout_seconds")
     @classmethod

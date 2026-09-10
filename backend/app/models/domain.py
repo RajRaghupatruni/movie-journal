@@ -1,7 +1,19 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, func, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
@@ -25,6 +37,28 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+
+
+class UserNotificationPreference(TimestampMixin, Base):
+    __tablename__ = "user_notification_preferences"
+    __table_args__ = (
+        CheckConstraint("notification_hour BETWEEN 0 AND 23", name="notification_hour_range"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="UTC")
+    anniversary_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true", default=True
+    )
+    anniversary_email_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true", default=True
+    )
+    notification_hour: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="9", default=9
+    )
 
 
 class Tandem(TimestampMixin, Base):
@@ -109,3 +143,58 @@ class OAuthState(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class NotificationOutbox(Base):
+    __tablename__ = "notification_outbox"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING', 'PROCESSING', 'SENT', 'FAILED', 'CANCELLED')",
+            name="notification_outbox_status",
+        ),
+        CheckConstraint("attempts >= 0", name="notification_outbox_attempts_positive"),
+        Index("ix_notification_outbox_pending", "status", "next_attempt_at", "created_at"),
+        Index(
+            "ix_notification_outbox_recipient_anniversary",
+            "user_id",
+            "anniversary_year",
+            "channel",
+        ),
+        UniqueConstraint(
+            "tandem_id",
+            "user_id",
+            "memory_id",
+            "anniversary_year",
+            "channel",
+            name="uq_notification_outbox_anniversary_delivery",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    tandem_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("tandems.id", ondelete="CASCADE"), nullable=False
+    )
+    memory_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("memories.id", ondelete="CASCADE"), nullable=False
+    )
+    anniversary_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    channel: Mapped[str] = mapped_column(String(24), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    idempotency_key: Mapped[str] = mapped_column(String(300), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="PENDING")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    processing_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
