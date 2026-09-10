@@ -33,7 +33,7 @@ afterEach(() => {
 describe('account and Tandem management surfaces', () => {
   it('uses privacy-safe route titles', () => {
     expect(getDocumentTitle('/', 'authenticated')).toBe('Today — Tandem')
-    expect(getDocumentTitle('/timeline', 'authenticated')).toBe('Timeline — Tandem')
+    expect(getDocumentTitle('/timeline', 'authenticated')).toBe('Memories — Tandem')
     expect(getDocumentTitle('/memory/private-title', 'authenticated')).toBe('Memory — Tandem')
     expect(getDocumentTitle('/settings', 'authenticated')).toBe('Settings — Tandem')
     expect(getDocumentTitle('/tandem', 'authenticated')).toBe('Tandem — Settings')

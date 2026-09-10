@@ -292,6 +292,14 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
             "Global One",
             "Global Two",
         }
+        scoped_today = alice.get(
+            "/api/me/on-this-day",
+            params={"tandem_id": first_id, "now": "2026-09-10T12:00:00Z"},
+        )
+        assert {item["memory"]["tandem_name"] for item in scoped_today.json()["anniversaries"]} == {
+            "Global One"
+        }
+        assert bob.get("/api/me/on-this-day", params={"tandem_id": second_id}).status_code == 404
 
         assert alice.get("/api/me/export").status_code == 200
         exported = alice.get("/api/me/export").json()

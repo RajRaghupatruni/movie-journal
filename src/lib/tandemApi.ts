@@ -121,6 +121,7 @@ export interface ApiPlaceSearchResult {
 }
 
 export interface MemoryListParams {
+  tandem_id?: string
   category?: MemoryCategory
   from_date?: string
   to_date?: string
@@ -174,6 +175,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const tandemApi = {
   me: () => request<ApiUser>('/api/me'),
+  logout: () => request<void>('/auth/logout', { method: 'POST', body: JSON.stringify({}) }),
   tandems: () => request<ApiTandem[]>('/api/me/tandems'),
   createTandem: (input: { name: string; timezone: string }) => request<ApiTandem>('/api/tandems', { method: 'POST', body: JSON.stringify(input) }),
   preferences: () => request<ApiPreferences>('/api/me/preferences'),
@@ -186,7 +188,7 @@ export const tandemApi = {
     Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== '') search.set(key, String(value)) })
     return request<{ items: ApiMemory[]; offset: number; limit: number; next_offset: number | null }>(`/api/me/memories${search.size ? `?${search}` : ''}`)
   },
-  globalToday: () => request<ApiOnThisDay>('/api/me/on-this-day'),
+  globalToday: (tandemId?: string) => request<ApiOnThisDay>(`/api/me/on-this-day${tandemId ? `?tandem_id=${encodeURIComponent(tandemId)}` : ''}`),
   notifications: (limit = 50) => request<{ items: ApiNotification[]; unread_count: number }>(`/api/me/notifications?limit=${limit}`),
   markNotificationRead: (id: string) => request<ApiNotification>(`/api/me/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: () => request<void>('/api/me/notifications/read-all', { method: 'POST' }),

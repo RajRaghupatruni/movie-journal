@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Tandem">
-  <rect width="32" height="32" rx="10" fill="#803e53"/>
-  <path fill="#fff" d="M9.5 9.5h13v3.2h-4.8v10.1h-3.5V12.7H9.5z"/>
+  <g transform="rotate(-4 16 16)">
+    <rect x="7" y="8" width="22" height="22" rx="7" fill="#803e53" opacity=".14"/>
+    <rect x="3" y="3" width="22" height="22" rx="7" fill="#803e53"/>
+    <text x="14" y="20" fill="#fff" font-family="Fraunces, Georgia, serif" font-size="17" font-weight="700" text-anchor="middle">t</text>
+  </g>
 </svg>

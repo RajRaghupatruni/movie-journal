@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AddMemoryLauncher, AnniversaryHero, AvatarStack, CalendarPanel, MemoryDetail, NotificationBell, Sidebar, TandemSwitcher } from './components.jsx'
 import { getAnniversaryCopy, groupMemoriesByYear, launcherChoices, navItems } from '../../data/tandemData'
 import { formatParticipantNames } from './presentation'
+import { MovieSearchPicker } from './ProviderSearch'
 
 describe('Tandem presentation contracts', () => {
   function mount(element: ReactElement) {
@@ -27,7 +28,7 @@ describe('Tandem presentation contracts', () => {
   ]
 
   it('exposes the desktop navigation in the intended order', () => {
-    expect(navItems.map((item) => item.label)).toEqual(['Today', 'Timeline', 'Explore', 'Calendar'])
+    expect(navItems.map((item) => item.label)).toEqual(['Today', 'Memories', 'Calendar'])
     const markup = renderToStaticMarkup(createElement(Sidebar, { path: '/', onNavigate: () => {}, onAddMemory: () => {} }))
     expect(markup).toContain('aria-current="page"')
     expect(markup).toContain('Add memory')
@@ -54,6 +55,13 @@ describe('Tandem presentation contracts', () => {
     expect(markup).toContain('role="dialog"')
     expect(markup).toContain('aria-modal="true"')
     expect(markup).toContain('What are we remembering?')
+  })
+
+  it('renders a compact selected TMDb card with a visible change action', () => {
+    const markup = renderToStaticMarkup(createElement(MovieSearchPicker, { selected: { title: 'Inception', release_year: 2010, poster_url: 'https://image.tmdb.org/t/p/w92/poster.jpg' }, onSelect: vi.fn() } as never))
+    expect(markup).toContain('selected-provider')
+    expect(markup).toContain('Change')
+    expect(markup).toContain('poster.jpg')
   })
 
   it('renders any one-to-five member participant stack', () => {
@@ -84,6 +92,15 @@ describe('Tandem presentation contracts', () => {
     expect(onSelect).toHaveBeenCalledWith('two')
     expect(view.container.querySelector('[role="menu"]')).toBeNull()
     view.unmount()
+  })
+
+  it('keeps an explicit global scope and scoped management navigation', () => {
+    const onSelectTandem = vi.fn()
+    const globalMarkup = renderToStaticMarkup(createElement(Sidebar, { path: '/', onNavigate: vi.fn(), onAddMemory: vi.fn(), tandems: [{ id: 'one', name: 'Sunday table' }], onSelectTandem } as never))
+    expect(globalMarkup).toContain('All Tandems')
+    expect(globalMarkup).not.toContain('People &amp; settings')
+    const scopedMarkup = renderToStaticMarkup(createElement(Sidebar, { path: '/tandem', onNavigate: vi.fn(), onAddMemory: vi.fn(), tandems: [{ id: 'one', name: 'Sunday table' }], selectedTandemId: 'one', tandemName: 'Sunday table', onSelectTandem } as never))
+    expect(scopedMarkup).toContain('People &amp; settings')
   })
 
   it('handles notification drawer read, read-all, and memory actions', () => {
