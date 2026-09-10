@@ -5,11 +5,11 @@
 **TANDEM V1 RELEASE VALIDATION: FAIL**
 
 The deployed V1 passed all safe live read-only checks and all local/PG18 regression suites. The
-one-account authenticated production write/provider suite is implemented but has not been run in
-this session because the operator has not supplied a local storage state. A/B/C authorization is
+authenticated one-account browser-mutation preflight passed, including create/list/delete and
+cleanup. The full journey then reproduced a live Geoapify integration failure: the provider route
+returned HTTP 200 with zero place results for several broad valid queries. A/B/C authorization is
 not blocked: it is proven in the exact PG18 production-shaped integration suite. The current FAIL
-is therefore pending critical live write-wiring evidence, not caused by the lack of additional
-Google accounts.
+is due to the reproduced provider defect, not the lack of additional Google accounts.
 
 ## Build and database under test
 
@@ -56,9 +56,10 @@ Inventory counts:
 | Ruff format check | passed; 80 files formatted |
 | Alembic current/check | `0016_v1_completion (head)`; no drift |
 | Live read-only Playwright | 2 passed |
-| Live one-account write/provider Playwright | not run; operator storage state required |
+| Live one-account mutation preflight | 1 passed; browser-origin create/list/delete cleanup verified |
+| Live one-account full journey | 1 failed at Geoapify zero-result response; cleanup verified |
 | Secret scan | 185 paths scanned, 0 findings |
-| Failed tests | 0 |
+| Failed tests | 1 (live Geoapify provider path) |
 | Skipped tests | 0 |
 
 ## Live production coverage actually executed
@@ -75,9 +76,15 @@ It verified:
 - `/auth/google/login` redirects to Google and does not expose a client secret or database URL.
 - HSTS, CSP, no-store/cache, frame, referrer, and content-type security headers were present.
 
-Google OAuth itself was not completed automatically. The normal OAuth entry point remains real;
-no test-login endpoint or bypass was added. The one-account continuation is implemented in
+Google OAuth itself remains real and was completed through the supplied local storage state; no
+test-login endpoint or bypass was added. The one-account continuation is implemented in
 `single-account-write.spec.ts` and requires the explicit `TANDEM_LIVE_WRITE=true` opt-in.
+
+The original 403 was a test-harness mismatch. Production `SameOriginMiddleware` rejects unsafe
+methods without an `Origin` or `Referer` resolving to the configured frontend origin. Raw
+Playwright `APIRequestContext` supplied cookies but no browser origin. The suite now sends every
+production mutation through `page.evaluate(fetch(..., credentials: 'same-origin'))`, matching the
+real frontend contract. Product security code was unchanged.
 
 ## Feature-area results
 
@@ -85,7 +92,7 @@ no test-login endpoint or bypass was added. The one-account continuation is impl
 |---|---|---|
 | Global and scoped navigation | MANUAL | One-account live navigation is implemented; PG18/backend and mocked browser coverage already pass |
 | Add Memory categories | MANUAL | One-account live creation is implemented; local category/API coverage passes |
-| Movie and place providers | MANUAL | One-account live TMDb/Geoapify search requires the operator storage state and production provider wiring |
+| Movie and place providers | FAIL / P2 defect | TMDb search and movie persistence reached production; Geoapify returned 200 with zero normalized results for broad valid queries |
 | Photos and private media | MANUAL | One-account B2 upload/read/delete is implemented; local private-media coverage passes |
 | Memory detail/reflections/reactions | LOCAL-INTEGRATION | Backend and mocked acceptance coverage |
 | Recently Deleted | LOCAL-INTEGRATION | Delete/restore/purge logic covered locally; one-account live recovery is implemented |
@@ -101,13 +108,18 @@ no test-login endpoint or bypass was added. The one-account continuation is impl
 
 ## Defects
 
-No product defect was reproduced by the executed suites. There are no P0, P1, P2, or P3 defects
-to report from this run.
+- **P2 — Geoapify place search returns no results in production.** `GET
+  /api/integrations/places/search` returned HTTP 200 with `items: []` for `Chicago`, `New York`,
+  `London`, and `Paris` during the authenticated live run. The one-account suite could not create
+  or persist a Geoapify-backed place memory. Manual place entry remains available, so this is not
+  an authorization or data-loss failure. Recommended follow-up: inspect the provider response
+  shape/configuration in the production integration; the current client expects `features` from
+  the `format=json` autocomplete response, and existing tests cover normalized fixtures rather
+  than the live response contract.
 
 The initial live browser/API checks exposed no application failure. A direct browser navigation
 to a JSON endpoint was blocked by the automation browser client, so the same read-only check was
-verified through the HTTP client and Playwright request fixture; this is a test-tool limitation,
-not a product defect.
+verified through the HTTP client and Playwright request fixture; this is a test-tool limitation.
 
 ## Manual production cases and operator inputs
 

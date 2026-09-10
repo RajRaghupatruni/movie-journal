@@ -39,6 +39,10 @@ recovery, scope navigation, confirmation modals, and cleanup. It does not delete
 account. If a provider or storage operation fails, retain the Playwright failure artifacts before
 reviewing or cleaning up the namespaced resources.
 
+State-changing calls deliberately run through the authenticated `page` context with
+`fetch(..., credentials: 'same-origin')`. Tandem production same-origin middleware requires a
+browser `Origin` or `Referer`; raw APIRequestContext is reserved for read-only calls in this suite.
+
 ## Layer boundaries
 
 - **LIVE**: genuine Google OAuth, Render/Neon/B2/provider wiring, one-account writes and reads.

@@ -11,6 +11,51 @@ async function json(response: Awaited<ReturnType<import('@playwright/test').APIR
   return response.json();
 }
 
+function safeFailureBody(body: unknown) {
+  if (body === null || body === undefined) return { body_type: 'empty' };
+  if (typeof body !== 'object') return { body_type: typeof body };
+  return { body_type: 'object', body_keys: Object.keys(body as Record<string, unknown>).slice(0, 20) };
+}
+
+async function browserApi(page: import('@playwright/test').Page, method: string, path: string, body?: unknown) {
+  return page.evaluate(async ({ method, path, body }) => {
+    const response = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      headers: body === null ? undefined : { 'Content-Type': 'application/json' },
+      body: body === null ? undefined : JSON.stringify(body),
+    });
+    const text = await response.text();
+    let parsed: unknown = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = null; }
+    return { status: response.status, body: parsed };
+  }, { method, path, body: body === undefined ? null : body });
+}
+
+async function browserJson(page: import('@playwright/test').Page, method: string, path: string, status: number, body?: unknown) {
+  const result = await browserApi(page, method, path, body);
+  if (result.status !== status) {
+    throw new Error(`Browser API ${method} ${path} returned ${result.status}; ${JSON.stringify(safeFailureBody(result.body))}`);
+  }
+  return result.body as Record<string, any>;
+}
+
+async function browserMultipart(page: import('@playwright/test').Page, path: string, bytes: Uint8Array, status: number) {
+  const result = await page.evaluate(async ({ path, bytes }) => {
+    const form = new FormData();
+    form.append('files', new Blob([new Uint8Array(bytes)], { type: 'image/png' }), 'e2e.png');
+    const response = await fetch(path, { method: 'POST', credentials: 'same-origin', body: form });
+    const text = await response.text();
+    let parsed: unknown = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = null; }
+    return { status: response.status, body: parsed };
+  }, { path, bytes: Array.from(bytes) });
+  if (result.status !== status) {
+    throw new Error(`Browser API POST ${path} returned ${result.status}; ${JSON.stringify(safeFailureBody(result.body))}`);
+  }
+  return result.body as Array<Record<string, any>>;
+}
+
 function compact<T extends Record<string, unknown>>(value: T): Partial<T> {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== null && item !== undefined));
 }
@@ -18,24 +63,37 @@ function compact<T extends Record<string, unknown>>(value: T): Partial<T> {
 test.describe('@write @provider @production-safe one-account V1 journey', () => {
   test.beforeEach(({ baseURL }) => assertSingleAccountWriteOptIn(baseURL));
 
+  test('@write-smoke browser same-origin mutation preflight', async ({ page }) => {
+    await page.goto('/');
+    await browserJson(page, 'GET', '/api/me', 200);
+    await browserJson(page, 'GET', '/api/me/preferences', 200);
+    let tandemId: string | undefined;
+    try {
+      const tandem = await browserJson(page, 'POST', '/api/tandems', 201, {
+        name: e2eName('Preflight-Tandem'), timezone: 'America/Chicago',
+      });
+      tandemId = tandem.id;
+      const tandems = await browserJson(page, 'GET', '/api/me/tandems', 200);
+      expect(tandems.map((item: { id: string }) => item.id)).toContain(tandemId);
+    } finally {
+      if (tandemId) await browserJson(page, 'DELETE', `/api/tandems/${tandemId}`, 204, { confirmation: 'DELETE' });
+    }
+  });
+
   test('runs isolated single-user creation, providers, media, recovery, navigation, and cleanup', async ({ page, request }) => {
     const createdTandems: string[] = [];
     let originalPreferences: Record<string, unknown> | undefined;
     try {
-      await json(await request.get('/api/me'), 200);
+      await page.goto('/');
+      await browserJson(page, 'GET', '/api/me', 200);
+      await browserJson(page, 'GET', '/api/me/preferences', 200);
       originalPreferences = await json(await request.get('/api/me/preferences'), 200);
 
       const tandemName = e2eName('Tandem');
       const secondTandemName = e2eName('Second-Tandem');
-      const tandem = await json(
-        await request.post('/api/tandems', { data: { name: tandemName, timezone: 'America/Chicago' } }),
-        201,
-      );
+      const tandem = await browserJson(page, 'POST', '/api/tandems', 201, { name: tandemName, timezone: 'America/Chicago' });
       createdTandems.push(tandem.id);
-      const secondTandem = await json(
-        await request.post('/api/tandems', { data: { name: secondTandemName, timezone: 'UTC' } }),
-        201,
-      );
+      const secondTandem = await browserJson(page, 'POST', '/api/tandems', 201, { name: secondTandemName, timezone: 'UTC' });
       createdTandems.push(secondTandem.id);
 
       const allTandems = await json(await request.get('/api/me/tandems'), 200);
@@ -47,7 +105,7 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       const date = '2024-09-10';
       const memories: Array<{ id: string; category: string }> = [];
       const createMemory = async (payload: Record<string, unknown>) => {
-        const saved = await json(await request.post(`/api/tandems/${tandem.id}/memories`, { data: payload }), 201);
+        const saved = await browserJson(page, 'POST', `/api/tandems/${tandem.id}/memories`, 201, payload);
         memories.push(saved);
         return saved;
       };
@@ -56,9 +114,9 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
         category: 'custom', title: e2eName('Custom-Memory'), local_date: date, timezone: 'America/Chicago',
         metadata: { label: 'single-account regression' }, tags: ['e2e', 'custom'], rating: 8,
       });
-      custom = await json(await request.patch(`/api/tandems/${tandem.id}/memories/${custom.id}`, {
-        data: { expected_version: custom.version, notes: 'Edited by the one-account production journey.' },
-      }), 200);
+      custom = await browserJson(page, 'PATCH', `/api/tandems/${tandem.id}/memories/${custom.id}`, 200, {
+        expected_version: custom.version, notes: 'Edited by the one-account production journey.',
+      });
       expect(custom.notes).toContain('one-account production journey');
       const activity = await createMemory({
         category: 'activity', title: e2eName('Activity-Memory'), local_date: '2024-09-11', timezone: 'America/Chicago',
@@ -82,9 +140,16 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       expect(movieMemory.metadata.provider).toBe('tmdb');
       expect(movieMemory.metadata.poster_url || movieMemory.metadata.backdrop_url).toBeTruthy();
 
-      const placeSearch = await json(await request.get('/api/integrations/places/search?q=Chicago%20Millennium%20Park'), 200);
-      expect(placeSearch.items.length).toBeGreaterThan(0);
-      const place = placeSearch.items[0];
+      let placeSearch: { items: Array<Record<string, any>> } | undefined;
+      for (const query of ['Chicago', 'New York', 'London', 'Paris']) {
+        const candidate = await json(await request.get(`/api/integrations/places/search?q=${encodeURIComponent(query)}`), 200);
+        if (candidate.items.length > 0) {
+          placeSearch = candidate;
+          break;
+        }
+      }
+      expect(placeSearch?.items.length || 0).toBeGreaterThan(0);
+      const place = placeSearch!.items[0];
       const placeMemory = await createMemory({
         category: 'place', title: place.name, local_date: '2024-09-16', timezone: 'America/Chicago',
         metadata: compact({ provider: 'geoapify', provider_place_id: place.provider_place_id, name: place.name,
@@ -107,21 +172,13 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       expect(filtered.items.map((item: { id: string }) => item.id)).toContain(movieMemory.id);
       expect((await json(await request.get(`/api/tandems/${tandem.id}/memories?category=trip`), 200)).items[0].end_date).toBe('2024-09-14');
 
-      const reflection = await json(
-        await request.put(`/api/tandems/${tandem.id}/memories/${movieMemory.id}/reflections/me`, {
-          data: { rating: 9, reaction: 'favorite', note: 'One-account production regression.' },
-        }),
-        200,
-      );
+      const reflection = await browserJson(page, 'PUT', `/api/tandems/${tandem.id}/memories/${movieMemory.id}/reflections/me`, 200, {
+        rating: 9, reaction: 'favorite', note: 'One-account production regression.',
+      });
       expect(reflection.rating).toBe(9);
       expect((await json(await request.get(`/api/tandems/${tandem.id}/memories/${movieMemory.id}`), 200)).my_reflection.note).toContain('production regression');
 
-      const media = await json(
-        await request.post(`/api/tandems/${tandem.id}/memories/${custom.id}/media`, {
-          multipart: { files: { name: 'e2e.png', mimeType: 'image/png', buffer: pngBytes } },
-        }),
-        201,
-      );
+      const media = await browserMultipart(page, `/api/tandems/${tandem.id}/memories/${custom.id}/media`, pngBytes, 201);
       expect(media).toHaveLength(1);
       expect((await json(await request.get(`/api/tandems/${tandem.id}/memories/${custom.id}/media`), 200))[0].url).toMatch(/^https?:\/\//);
       const signedUrl = new URL(media[0].url);
@@ -132,16 +189,14 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       } finally {
         await anonymous.dispose();
       }
-      expect((await request.delete(`/api/tandems/${tandem.id}/memories/${custom.id}/media/${media[0].id}`)).status()).toBe(204);
+      await browserJson(page, 'DELETE', `/api/tandems/${tandem.id}/memories/${custom.id}/media/${media[0].id}`, 204);
 
-      const tandemPreference = await json(await request.patch(`/api/tandems/${tandem.id}/preferences`, {
-        data: { resurfacing_enabled: false, routine_notifications_enabled: false },
-      }), 200);
+      const tandemPreference = await browserJson(page, 'PATCH', `/api/tandems/${tandem.id}/preferences`, 200, {
+        resurfacing_enabled: false, routine_notifications_enabled: false,
+      });
       expect(tandemPreference.resurfacing_enabled).toBe(false);
       expect(tandemPreference.routine_notifications_enabled).toBe(false);
-      const updatedPreferences = await json(await request.patch('/api/me/preferences', {
-        data: { anniversary_notifications_enabled: false },
-      }), 200);
+      const updatedPreferences = await browserJson(page, 'PATCH', '/api/me/preferences', 200, { anniversary_notifications_enabled: false });
       expect(updatedPreferences.anniversary_notifications_enabled).toBe(false);
       expect((await json(await request.get(`/api/me/on-this-day?tandem_id=${tandem.id}`), 200)).anniversaries).toEqual([]);
       expect((await json(await request.get(`/api/me/rediscovery/shuffle?tandem_id=${tandem.id}&seed=e2e`), 200)).memory).toBeNull();
@@ -150,7 +205,7 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       expect((await json(await request.get('/api/me/notifications'), 200)).items).toBeDefined();
 
       const renamed = e2eName('Renamed-Tandem');
-      const updatedTandem = await json(await request.patch(`/api/tandems/${tandem.id}`, { data: { name: renamed, timezone: 'UTC' } }), 200);
+      const updatedTandem = await browserJson(page, 'PATCH', `/api/tandems/${tandem.id}`, 200, { name: renamed, timezone: 'UTC' });
       expect(updatedTandem.name).toBe(renamed);
       expect(updatedTandem.timezone).toBe('UTC');
 
@@ -185,14 +240,13 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       await expect(tandemDialog.getByRole('button', { name: 'Delete Tandem' })).toBeDisabled();
       await page.getByRole('button', { name: 'Cancel' }).click();
 
-      const deleted = await request.delete(`/api/tandems/${tandem.id}/memories/${activity.id}`, { params: { expected_version: 1 } });
-      expect(deleted.status()).toBe(204);
+      await browserJson(page, 'DELETE', `/api/tandems/${tandem.id}/memories/${activity.id}?expected_version=1`, 204);
       const deletedList = await json(await request.get(`/api/tandems/${tandem.id}/memories/deleted`), 200);
       expect(deletedList.items.map((item: { id: string }) => item.id)).toContain(activity.id);
-      const restoredActivity = await json(await request.post(`/api/tandems/${tandem.id}/memories/${activity.id}/restore`), 200);
+      const restoredActivity = await browserJson(page, 'POST', `/api/tandems/${tandem.id}/memories/${activity.id}/restore`, 200);
       expect(restoredActivity.id).toBe(activity.id);
-      expect((await request.delete(`/api/tandems/${tandem.id}/memories/${activity.id}`, { params: { expected_version: restoredActivity.version } })).status()).toBe(204);
-      expect((await request.delete(`/api/tandems/${tandem.id}/memories/${activity.id}/permanent`)).status()).toBe(204);
+      await browserJson(page, 'DELETE', `/api/tandems/${tandem.id}/memories/${activity.id}?expected_version=${restoredActivity.version}`, 204);
+      await browserJson(page, 'DELETE', `/api/tandems/${tandem.id}/memories/${activity.id}/permanent`, 204);
 
       await page.getByRole('button', { name: 'People & settings' }).click();
       await page.getByRole('button', { name: 'Delete Tandem' }).click();
@@ -203,10 +257,10 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       createdTandems.splice(createdTandems.indexOf(tandem.id), 1);
     } finally {
       if (originalPreferences) {
-        await request.patch('/api/me/preferences', { data: originalPreferences }).catch(() => undefined);
+        await browserApi(page, 'PATCH', '/api/me/preferences', originalPreferences).catch(() => undefined);
       }
       for (const tandemId of createdTandems.reverse()) {
-        await request.delete(`/api/tandems/${tandemId}`, { data: { confirmation: 'DELETE' } }).catch(() => undefined);
+        await browserApi(page, 'DELETE', `/api/tandems/${tandemId}`, { confirmation: 'DELETE' }).catch(() => undefined);
       }
     }
   });
