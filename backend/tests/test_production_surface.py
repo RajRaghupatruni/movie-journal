@@ -138,7 +138,7 @@ def test_spa_fallback_does_not_hide_missing_assets_or_api_routes():
     app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="frontend")
     with TestClient(app) as client:
         route = client.get("/timeline")
-        asset = client.get("/public/vite.svg")
+        asset = client.get("/public/tandem-mark.svg")
         assert '<div id="root"></div>' in route.text
         assert route.headers["cache-control"].startswith("no-cache")
         assert asset.status_code == 200

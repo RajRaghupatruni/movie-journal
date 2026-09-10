@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from sqlalchemy.exc import OperationalError
 
 from app.core.logging import request_id
@@ -96,6 +97,8 @@ def test_production_does_not_enable_local_cors(settings, monkeypatch, tmp_path):
     (static_dir / "index.html").write_text('<div id="root"></div>', encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     settings.app_env = "production"
+    settings.service_mode = "web"
+    settings.oauth_session_secret = SecretStr("test-only-oauth-session-secret")
     app = create_app(settings)
     with TestClient(app) as client:
         response = client.options(
