@@ -104,6 +104,7 @@ def generate_candidates(db: Session, now: datetime, *, email_delivery_enabled: b
                         "anniversary_date": match.anniversary_date.isoformat(),
                     },
                     idempotency_key=key,
+                    next_attempt_at=now,
                 )
                 .on_conflict_do_nothing(index_elements=["idempotency_key"])
                 .returning(NotificationOutbox.id)
