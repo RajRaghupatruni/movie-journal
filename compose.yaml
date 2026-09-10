@@ -21,9 +21,9 @@ services:
     environment:
       APP_ENV: development
       LOG_LEVEL: INFO
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tandem}:${POSTGRES_PASSWORD:?Set a new local POSTGRES_PASSWORD in .env.local}@postgres:5432/${POSTGRES_DB:-tandem}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_RUNTIME_USER:-tandem_app}:${POSTGRES_RUNTIME_PASSWORD:?Set a new local POSTGRES_RUNTIME_PASSWORD in .env.local}@postgres:5432/${POSTGRES_DB:-tandem}
       MIGRATION_DATABASE_URL: postgresql+psycopg://${POSTGRES_MIGRATION_USER:-tandem_migrator}:${POSTGRES_MIGRATION_PASSWORD:-${POSTGRES_PASSWORD:?Set a new local POSTGRES_PASSWORD in .env.local}}@postgres:5432/${POSTGRES_DB:-tandem}
-      DATABASE_RUNTIME_ROLE: ${POSTGRES_USER:-tandem}
+      DATABASE_RUNTIME_ROLE: ${POSTGRES_RUNTIME_USER:-tandem_app}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8000/auth/google/callback}
@@ -51,8 +51,12 @@ services:
     image: postgres:16-bookworm
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-tandem}
-      POSTGRES_USER: ${POSTGRES_USER:-tandem}
+      POSTGRES_USER: ${POSTGRES_MIGRATION_USER:-tandem_migrator}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a new local POSTGRES_PASSWORD in .env.local}
+      POSTGRES_MIGRATION_USER: ${POSTGRES_MIGRATION_USER:-tandem_migrator}
+      POSTGRES_MIGRATION_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:-${POSTGRES_PASSWORD:?Set a new local POSTGRES_PASSWORD in .env.local}}
+      POSTGRES_RUNTIME_USER: ${POSTGRES_RUNTIME_USER:-tandem_app}
+      POSTGRES_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?Set a new local POSTGRES_RUNTIME_PASSWORD in .env.local}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

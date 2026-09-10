@@ -60,10 +60,16 @@ def media_clients(postgres_engines, monkeypatch):
         result.cookies.set("tandem_session", raw_session)
         return result
 
-    return runtime_engine, owner_engine, (user_a, user_b, user_c), storage, (
-        client(session_a),
-        client(session_b),
-        client(session_c),
+    return (
+        runtime_engine,
+        owner_engine,
+        (user_a, user_b, user_c),
+        storage,
+        (
+            client(session_a),
+            client(session_b),
+            client(session_c),
+        ),
     )
 
 
@@ -99,13 +105,17 @@ def test_member_media_is_private_and_memory_delete_cleans_objects(media_clients)
         media_id = upload.json()[0]["id"]
         assert b.get(f"/api/tandems/{tandem_id}/memories/{memory_id}/media").status_code == 200
         assert c.get(f"/api/tandems/{tandem_id}/memories/{memory_id}/media").status_code == 404
-        assert c.post(
-            f"/api/tandems/{tandem_id}/memories/{memory_id}/media",
-            files={"files": ("holiday.png", _photo_bytes(), "image/png")},
-        ).status_code == 404
-        assert a.delete(
-            f"/api/tandems/{tandem_id}/memories/{memory_id}/media/{media_id}"
-        ).status_code == 204
+        assert (
+            c.post(
+                f"/api/tandems/{tandem_id}/memories/{memory_id}/media",
+                files={"files": ("holiday.png", _photo_bytes(), "image/png")},
+            ).status_code
+            == 404
+        )
+        assert (
+            a.delete(f"/api/tandems/{tandem_id}/memories/{memory_id}/media/{media_id}").status_code
+            == 204
+        )
         assert not storage.objects
 
     with Session(runtime_engine) as db, db.begin():
@@ -133,8 +143,11 @@ def test_memory_delete_removes_associated_object(media_clients):
             files={"files": ("delete.png", _photo_bytes(), "image/png")},
         )
         assert upload.status_code == 201
-        assert client.delete(
-            f"/api/tandems/{tandem_id}/memories/{memory['id']}",
-            params={"expected_version": memory["version"]},
-        ).status_code == 204
+        assert (
+            client.delete(
+                f"/api/tandems/{tandem_id}/memories/{memory['id']}",
+                params={"expected_version": memory["version"]},
+            ).status_code
+            == 204
+        )
         assert storage.deleted

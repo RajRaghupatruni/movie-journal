@@ -19,10 +19,10 @@ docker compose --env-file .env.local exec backend alembic upgrade head
 docker compose --env-file .env.local ps
 ```
 
-The helper creates ignored `.env.local` with a random **local database** password, without reading or overwriting legacy `.env`. Existing `.env.local` is never overwritten. `.env.example` contains names and empty values only; it is a reference, not runnable configuration. Always supply `--env-file .env.local` to Compose.
+The helper creates ignored `.env.local` with separate random migration-admin and runtime passwords, without reading or overwriting legacy `.env`. Existing `.env.local` is never overwritten. `.env.example` contains names and empty values only; it is a reference, not runnable configuration. Always supply `--env-file .env.local` to Compose.
 
 - [Frontend](http://localhost:5173), [API health](http://localhost:8000/api/health), [API docs](http://localhost:8000/docs).
-- PostgreSQL 16: loopback port 5432; migrations use `tandem_migrator` and the API uses the non-bypass-RLS `tandem` role by default.
+- PostgreSQL 16: loopback port 5432; migrations use `tandem_migrator` and the API uses the non-bypass-RLS `tandem_app` role by default.
 - Redis 7: loopback port 6379, AOF persistence, currently unused by the backend.
 
 Resolve existing port conflicts before startup. All published ports bind to `127.0.0.1`. Source is copied into images: rebuild after changes. `docker compose --env-file .env.local down` stops the stack and preserves named volumes. Adding `--volumes` erases development data. Changing `.env.local` does not rotate a password in an initialized PostgreSQL role. This Compose file is for local development, not public deployment.
@@ -74,10 +74,33 @@ docker compose --env-file .env.local exec backend alembic check
 docker compose --env-file .env.local exec redis redis-cli ping
 ```
 
-The integration test skips unless both `TEST_DATABASE_URL` and `TEST_DATABASE_OWNER_URL` are set. The former must use the non-bypass-RLS runtime role; the latter is used only to migrate and provision deterministic test identities. To use the isolated local Compose database without printing credentials:
+The integration tests use both `TEST_DATABASE_URL` (non-bypass-RLS runtime role) and `TEST_DATABASE_OWNER_URL` (migration/admin role). Start a clean disposable PostgreSQL test database in its own Compose project; this does not touch the development volume:
 
 ```powershell
-docker compose --env-file .env.local exec backend python -c "import os,pytest; os.environ['TEST_DATABASE_OWNER_URL']=os.environ['DATABASE_URL']; os.environ['TEST_DATABASE_URL']='postgresql+psycopg://tandem_runtime:fixture@postgres:5432/tandem'; raise SystemExit(pytest.main(['-q','-p','no:cacheprovider']))"
+$env:POSTGRES_PASSWORD = 'disposable-migration-password'
+$env:POSTGRES_RUNTIME_PASSWORD = 'disposable-runtime-password'
+docker compose -p tandem-pg-test -f compose.postgres-test.yaml up -d --wait
+$env:TEST_DATABASE_URL = 'postgresql+psycopg://tandem_app:disposable-runtime-password@127.0.0.1:55432/tandem_test'
+$env:TEST_DATABASE_OWNER_URL = 'postgresql+psycopg://tandem_migrator:disposable-migration-password@127.0.0.1:55432/tandem_test'
+$env:DATABASE_RUNTIME_ROLE = 'tandem_app'
+python -m pytest backend/tests -q
+```
+
+Use throwaway values only. Remove that isolated database after verification with `docker compose -p tandem-pg-test -f compose.postgres-test.yaml down --volumes`; never use `--volumes` on the normal development project unless its data has been backed up and intentionally discarded. The test volume is deliberately separate from `tandem_postgres_data`.
+
+For an existing development volume, changing `.env.local` does not rotate PostgreSQL role passwords or run init scripts again. Stop the stack without data loss, back up anything needed, and use the explicit clean reset only when the volume is disposable:
+
+```powershell
+docker compose --env-file .env.local down
+docker compose --env-file .env.local down --volumes  # destructive: only after confirming development data may be erased
+```
+
+Then rerun `python scripts/dev_setup.py` (which will leave an existing `.env.local` unchanged, so replace it only after preserving any needed values) and start Compose again. A production database must be repaired with an explicit role/password migration; do not apply the disposable reset procedure.
+
+The former one-line shortcut below is retained for an already configured stack, but it is not a substitute for the two-role test setup:
+
+```powershell
+docker compose --env-file .env.local exec backend python -c "import os,pytest; os.environ['TEST_DATABASE_OWNER_URL']=os.environ['MIGRATION_DATABASE_URL']; os.environ['TEST_DATABASE_URL']=os.environ['DATABASE_URL']; raise SystemExit(pytest.main(['-q','-p','no:cacheprovider']))"
 ```
 
 The empty baseline supports `alembic downgrade base` then `alembic upgrade head` on a disposable development database. Review future migrations before downgrade: they may remove real data. Health checks test connectivity, not migration revision.
@@ -104,8 +127,9 @@ CI gates current source with Gitleaks and the Python guard, runs frontend tests/
 | --- | --- |
 | `APP_ENV` | development/test/production; defaults to development |
 | `LOG_LEVEL` | DEBUG/INFO/WARNING/ERROR/CRITICAL; defaults to INFO |
-| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Compose bootstrap; password required and generated locally |
-| `POSTGRES_MIGRATION_USER`, `POSTGRES_MIGRATION_PASSWORD` | Dedicated schema-migration role; initialized on a fresh PostgreSQL volume |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Compose bootstrap; `POSTGRES_USER` is the migration/admin role and its password is required/generated locally |
+| `POSTGRES_MIGRATION_USER`, `POSTGRES_MIGRATION_PASSWORD` | Dedicated schema-migration role; normally the same as the Compose bootstrap role; initialized on a fresh PostgreSQL volume |
+| `POSTGRES_RUNTIME_USER`, `POSTGRES_RUNTIME_PASSWORD` | Separate API login; initialized as non-superuser and non-`BYPASSRLS` |
 | `DATABASE_URL`, `DATABASE_RUNTIME_ROLE` | API runtime URL and expected non-superuser/non-`BYPASSRLS` role |
 | `MIGRATION_DATABASE_URL` | Alembic URL for the dedicated migration role |
 | `CORS_ORIGINS` | JSON array of local HTTP origins; defaults to localhost and 127.0.0.1 port 5173, enabled in development only |

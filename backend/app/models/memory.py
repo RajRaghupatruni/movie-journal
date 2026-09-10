@@ -13,6 +13,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +34,16 @@ class Memory(Base):
         Index("ix_memories_tandem_category", "tandem_id", "category"),
         Index("ix_memories_tandem_updated_at", "tandem_id", "updated_at"),
         Index("ix_memories_search_vector", "search_vector", postgresql_using="gin"),
+        Index(
+            "uq_memories_movie_provider_date",
+            "tandem_id",
+            text("(metadata ->> 'provider_movie_id')"),
+            "local_date",
+            unique=True,
+            postgresql_where=text(
+                "category = 'movie' AND metadata ->> 'provider_movie_id' IS NOT NULL"
+            ),
+        ),
         UniqueConstraint("id", "tandem_id", name="uq_memories_id_tandem"),
     )
 

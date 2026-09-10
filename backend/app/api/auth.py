@@ -92,11 +92,13 @@ async def google_callback(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")
 
     oauth_state = db.scalar(
-        select(OAuthState).where(
+        select(OAuthState)
+        .where(
             OAuthState.state_hash == hash_secret(query_state),
             OAuthState.consumed_at.is_(None),
             OAuthState.expires_at > datetime.now(UTC),
-        ).with_for_update()
+        )
+        .with_for_update()
     )
     if oauth_state is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")

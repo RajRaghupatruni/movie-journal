@@ -139,9 +139,11 @@ async def upload_media(
             next_order += 1
             db.add(media)
             created.append(media)
+        # Flush while the transaction-local request identity is still set. A
+        # post-commit refresh would run without app.current_user_id() and be
+        # hidden by FORCE RLS.
+        db.flush()
         db.commit()
-        for media in created:
-            db.refresh(media)
         return [_response(media, storage) for media in created]
     except HTTPException:
         db.rollback()
@@ -158,7 +160,7 @@ async def upload_media(
                 storage.delete_object(object_key)
             except Exception:
                 logger.error("media_orphan_cleanup_failed")
-        logger.error("media_upload_failed")
+        logger.exception("media_upload_failed")
         raise HTTPException(
             status_code=503, detail="Photo upload failed; no photo was saved"
         ) from None

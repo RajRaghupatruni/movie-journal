@@ -6,8 +6,9 @@ import os
 import re
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0009_private_memory_media"
 down_revision = "0008_memory_domain"
@@ -29,22 +30,34 @@ def upgrade() -> None:
         sa.Column("height", sa.Integer, nullable=False),
         sa.Column("original_filename", sa.String(255), nullable=True),
         sa.Column("created_by", UUID, nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("display_order", sa.Integer, server_default="0", nullable=False),
         sa.ForeignKeyConstraint(
-            ["memory_id", "tandem_id"], ["memories.id", "memories.tandem_id"], ondelete="CASCADE",
+            ["memory_id", "tandem_id"],
+            ["memories.id", "memories.tandem_id"],
+            ondelete="CASCADE",
             name="fk_memory_media_memory_tandem",
         ),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id", name="pk_memory_media"),
         sa.UniqueConstraint("object_key", name="uq_memory_media_object_key"),
-        sa.CheckConstraint("content_type IN ('image/jpeg', 'image/png', 'image/webp')", name="content_type"),
+        sa.CheckConstraint(
+            "content_type IN ('image/jpeg', 'image/png', 'image/webp')", name="content_type"
+        ),
         sa.CheckConstraint("byte_size > 0", name="positive_byte_size"),
         sa.CheckConstraint("width > 0 AND height > 0", name="positive_dimensions"),
         sa.CheckConstraint("display_order >= 0", name="nonnegative_display_order"),
     )
-    op.create_index("ix_memory_media_tandem_memory_order", "memory_media", ["tandem_id", "memory_id", "display_order"])
-    op.create_index("ix_memory_media_tandem_created_at", "memory_media", ["tandem_id", "created_at"])
+    op.create_index(
+        "ix_memory_media_tandem_memory_order",
+        "memory_media",
+        ["tandem_id", "memory_id", "display_order"],
+    )
+    op.create_index(
+        "ix_memory_media_tandem_created_at", "memory_media", ["tandem_id", "created_at"]
+    )
     op.execute(
         """
         CREATE UNIQUE INDEX uq_memories_movie_provider_date
@@ -77,9 +90,14 @@ def upgrade() -> None:
         f"""
         DO $grant$ BEGIN
             IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{runtime_role}') THEN
-                EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON memory_media TO %I', '{runtime_role}');
+                EXECUTE format(
+                    'GRANT SELECT, INSERT, UPDATE, DELETE ON memory_media TO %I',
+                    '{runtime_role}'
+                );
             ELSE
-                EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON memory_media TO %I', current_user);
+                EXECUTE format(
+                    'GRANT SELECT, INSERT, UPDATE, DELETE ON memory_media TO %I', current_user
+                );
             END IF;
         END $grant$;
         """

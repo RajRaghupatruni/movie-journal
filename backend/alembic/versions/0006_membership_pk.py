@@ -11,10 +11,7 @@ depends_on = None
 def upgrade() -> None:
     # IF EXISTS keeps this compatible with databases initialized from an
     # earlier development revision that already relied on the composite PK.
-    op.execute(
-        "ALTER TABLE tandem_members "
-        "DROP CONSTRAINT IF EXISTS uq_tandem_members_tandem_id"
-    )
+    op.execute("ALTER TABLE tandem_members DROP CONSTRAINT IF EXISTS uq_tandem_members_tandem_id")
 
 
 def downgrade() -> None:
