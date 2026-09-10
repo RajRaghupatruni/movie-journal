@@ -104,6 +104,7 @@ def generate_candidates(db: Session, now: datetime, *, email_delivery_enabled: b
                         "anniversary_date": match.anniversary_date.isoformat(),
                     },
                     idempotency_key=key,
+                    next_attempt_at=now,
                 )
                 .on_conflict_do_nothing(index_elements=["idempotency_key"])
                 .returning(NotificationOutbox.id)
@@ -252,7 +253,7 @@ def main() -> None:
     parser.add_argument("--now", help="UTC ISO timestamp for deterministic runs/tests")
     args = parser.parse_args()
     now = as_utc(datetime.fromisoformat(args.now)) if args.now else None
-    result = run_worker(load_settings(), now=now)
+    result = run_worker(load_settings(service_mode="worker"), now=now)
     print(result)
 
 

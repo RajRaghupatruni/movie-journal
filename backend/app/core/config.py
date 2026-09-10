@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     )
 
     app_env: Literal["development", "test", "production"] = "development"
+    # The worker shares the production settings contract but never constructs the web app.
+    # Keep this explicit so web-only secrets do not become cron requirements.
+    service_mode: Literal["web", "worker"] = "web"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     database_url: SecretStr
     migration_database_url: SecretStr | None = None
@@ -37,6 +40,7 @@ class Settings(BaseSettings):
     google_client_id: str | None = None
     google_client_secret: SecretStr | None = None
     google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
+    oauth_session_secret: SecretStr | None = None
     session_cookie_name: str = "tandem_session"
     session_ttl_seconds: int = 60 * 60 * 24 * 7
     oauth_state_ttl_seconds: int = 600
@@ -125,6 +129,8 @@ class Settings(BaseSettings):
             "S3_SECRET_ACCESS_KEY": self.s3_secret_access_key,
             "S3_REGION": self.s3_region,
         }
+        if self.service_mode == "web":
+            required["OAUTH_SESSION_SECRET"] = self.oauth_session_secret
         if self.email_delivery_enabled:
             required.update(
                 {
@@ -152,7 +158,34 @@ class Settings(BaseSettings):
         redirect = urlsplit(self.google_redirect_uri)
         if redirect.path != "/auth/google/callback":
             raise ValueError("GOOGLE_REDIRECT_URI must end in /auth/google/callback")
+        if self.service_mode == "web":
+            self.get_oauth_session_secret()
         return self
+
+    def get_oauth_session_secret(self) -> str:
+        """Return the Authlib-only session key without exposing it in settings output."""
+        if self.oauth_session_secret is None:
+            if self.app_env == "production" and self.service_mode == "web":
+                raise ValueError("production configuration is missing: OAUTH_SESSION_SECRET")
+            # This key is only for local/test transient OAuth bookkeeping. Production web
+            # startup is rejected above unless an explicitly configured SecretStr is present.
+            return "tandem-local-oauth-session-only-change-me"
+
+        value = self.oauth_session_secret.get_secret_value()
+        if not value.strip():
+            raise ValueError("OAUTH_SESSION_SECRET must not be empty")
+        if self.app_env == "production" and self.service_mode == "web":
+            if self.google_client_secret and value == self.google_client_secret.get_secret_value():
+                raise ValueError("OAUTH_SESSION_SECRET must be distinct from GOOGLE_CLIENT_SECRET")
+            for database_secret in (self.database_url, self.migration_database_url):
+                if database_secret is None:
+                    continue
+                database_value = database_secret.get_secret_value()
+                if value == database_value or value == make_url(database_value).password:
+                    raise ValueError(
+                        "OAUTH_SESSION_SECRET must be distinct from database credentials"
+                    )
+        return value
 
     @field_validator("cors_origins")
     @classmethod
@@ -187,9 +220,12 @@ class Settings(BaseSettings):
         return value
 
 
-def load_settings() -> Settings:
+def load_settings(*, service_mode: Literal["web", "worker"] = "web") -> Settings:
     try:
-        return Settings()
+        settings = Settings(service_mode=service_mode)
+        if service_mode == "web":
+            settings.get_oauth_session_secret()
+        return settings
     except (ValidationError, ValueError):
         # Settings validation can otherwise print secret environment inputs in tracebacks.
         raise RuntimeError(
