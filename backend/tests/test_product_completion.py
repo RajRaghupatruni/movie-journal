@@ -295,6 +295,11 @@ def test_notifications_global_views_export_and_removed_tandem_exclusion(product_
             first_memory["id"],
             second_memory["id"],
         }
+        assert all(
+            "email" not in participant
+            for memory in exported["memories"]
+            for participant in memory["participants"]
+        )
         assert bob.get(f"/api/tandems/{second_id}").status_code == 404
         assert second_id not in {
             item["tandem_id"] for item in bob.get("/api/me/export").json()["memories"]

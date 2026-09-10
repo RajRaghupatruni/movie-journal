@@ -105,7 +105,7 @@ def _load_related(
     if not memory_ids:
         return {}
     participant_rows = db.execute(
-        select(MemoryParticipant.memory_id, User.id, User.display_name, User.email, User.avatar_url)
+        select(MemoryParticipant.memory_id, User.id, User.display_name)
         .join(User, User.id == MemoryParticipant.user_id)
         .where(MemoryParticipant.memory_id.in_(memory_ids))
     ).all()
@@ -118,13 +118,11 @@ def _load_related(
     related: dict[UUID, tuple[list[MemberSummary], list[str]]] = {
         memory_id: ([], []) for memory_id in memory_ids
     }
-    for memory_id, user_id, display_name, email, avatar_url in participant_rows:
+    for memory_id, user_id, display_name in participant_rows:
         related[memory_id][0].append(
             MemberSummary(
                 user_id=user_id,
                 display_name=display_name,
-                email=email,
-                avatar_url=avatar_url,
             )
         )
     for memory_id, name in tag_rows:
@@ -164,8 +162,6 @@ def _responses(
                     byte_size=item.byte_size,
                     width=item.width,
                     height=item.height,
-                    original_filename=item.original_filename,
-                    created_by=item.created_by,
                     created_at=item.created_at,
                     display_order=item.display_order,
                     url=url,

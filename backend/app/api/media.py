@@ -59,8 +59,6 @@ def _response(media: MemoryMedia, storage: ObjectStorage | None) -> MemoryMediaR
         byte_size=media.byte_size,
         width=media.width,
         height=media.height,
-        original_filename=media.original_filename,
-        created_by=media.created_by,
         created_at=media.created_at,
         display_order=media.display_order,
         url=url,

@@ -148,9 +148,7 @@ def list_members(
     return [
         MemberResponse(
             user_id=member.user_id,
-            email=user.email,
             display_name=user.display_name,
-            avatar_url=user.avatar_url,
             role=member.role,
             joined_at=member.joined_at,
         )
@@ -248,9 +246,7 @@ def promote_member(
     user = db.get(User, user_id)
     return MemberResponse(
         user_id=member.user_id,
-        email=user.email,
         display_name=user.display_name,
-        avatar_url=user.avatar_url,
         role=member.role,
         joined_at=member.joined_at,
     )
@@ -295,9 +291,7 @@ def demote_member(
     user = db.get(User, user_id)
     return MemberResponse(
         user_id=member.user_id,
-        email=user.email,
         display_name=user.display_name,
-        avatar_url=user.avatar_url,
         role=member.role,
         joined_at=member.joined_at,
     )

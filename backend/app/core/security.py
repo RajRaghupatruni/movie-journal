@@ -49,7 +49,6 @@ class SecurityHeadersMiddleware:
             "blob:",
             "https://image.tmdb.org",
             "https://*.googleusercontent.com",
-            "https://*.backblazeb2.com",
         ]
         if settings.s3_endpoint_url:
             host = urlsplit(settings.s3_endpoint_url).netloc
@@ -86,6 +85,10 @@ class SecurityHeadersMiddleware:
                     security_headers[b"strict-transport-security"] = (
                         b"max-age=31536000; includeSubDomains"
                     )
+                if scope.get("path", "").startswith("/api/") or scope.get("path", "").startswith(
+                    "/auth/"
+                ):
+                    security_headers[b"cache-control"] = b"no-store"
                 headers.extend(
                     (key, value) for key, value in security_headers.items() if key not in existing
                 )

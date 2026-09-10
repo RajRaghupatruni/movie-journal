@@ -8,6 +8,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_WEBP_QUALITY = 85
+MAX_INPUT_PIXELS = 40_000_000
 
 
 class InvalidImage(Exception):
@@ -23,6 +24,9 @@ def process_image(
         raise InvalidImage("Image is larger than the 10 MB upload limit")
     try:
         with Image.open(BytesIO(raw)) as source:
+            width, height = source.size
+            if width <= 0 or height <= 0 or width * height > MAX_INPUT_PIXELS:
+                raise InvalidImage("The image dimensions are too large")
             source.verify()
         with Image.open(BytesIO(raw)) as source:
             image = ImageOps.exif_transpose(source).convert("RGB")

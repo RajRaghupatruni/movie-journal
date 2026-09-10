@@ -14,7 +14,7 @@ The current deployment-preparation result is recorded here; the historical notes
 | Frontend tests | 5 files, 17 tests passed |
 | Backend lint/format | Ruff check passed; 67 files already formatted |
 | Backend PostgreSQL/RLS suite | 51 tests passed in the Linux production image against the disposable PostgreSQL role-separated stack |
-| Alembic | `alembic check` reported no new operations; migrations reach `0011_nostalgia_notifications` |
+| Alembic | `alembic check` reported no new operations; migrations reach `0013_security_hardening` |
 | Secret/dependency scans | Source secret scan: 0 findings; `npm audit --audit-level=high`: 0 vulnerabilities |
 | Production image | Docker multi-stage image build passed; non-root container smoke passed for `/healthz`, SPA fallback, hashed asset caching, API 404 behavior, CSP, and request IDs |
 | Render config | `render.yaml` parsed successfully; no database or Redis service is provisioned |

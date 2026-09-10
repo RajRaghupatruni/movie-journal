@@ -27,9 +27,7 @@ export interface ApiTandem {
 
 export interface ApiMember {
   user_id: string
-  email: string | null
   display_name: string
-  avatar_url: string | null
   role: string
   joined_at: string
 }
@@ -52,7 +50,7 @@ export interface ApiMemory {
   nostalgia_eligible: boolean
   schema_version: number
   metadata: Record<string, unknown>
-  participants: Array<Pick<ApiMember, 'user_id' | 'display_name' | 'email' | 'avatar_url'>>
+  participants: Array<Pick<ApiMember, 'user_id' | 'display_name'>>
   tags: string[]
   media: ApiMedia[]
 }
@@ -74,14 +72,11 @@ export interface ApiOnThisDay {
 export interface ApiNotification {
   id: string
   type: string
-  actor_user_id: string | null
   actor_name: string | null
   tandem_id: string | null
   tandem_name: string | null
   memory_id: string | null
-  invitation_id: string | null
   payload: Record<string, unknown>
-  dedupe_key: string
   created_at: string
   read_at: string | null
   archived_at: string | null
@@ -94,8 +89,6 @@ export interface ApiMedia {
   byte_size: number
   width: number
   height: number
-  original_filename: string | null
-  created_by: string
   created_at: string
   display_order: number
   url: string | null
