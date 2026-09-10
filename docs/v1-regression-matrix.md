@@ -3,11 +3,15 @@
 This inventory is derived from the V1 implementation at the start of the validation branch,
 not from the product brief alone. The application is feature frozen. Coverage labels are:
 
-- **LIVE-AUTOMATED**: executed against `https://tandem-web-xnih.onrender.com` without writing data.
-- **LOCAL-INTEGRATION**: executed against the PG18 test stack or a provider/storage mock.
+- **LIVE-AUTOMATED**: executed against `https://tandem-web-xnih.onrender.com`; write coverage uses one
+  genuine OAuth identity and a namespaced disposable resource set.
+- **LOCAL-INTEGRATION**: executed against the PG18 test stack or a provider/storage mock. This is
+  the authoritative layer for multi-user authorization when only one live identity is available.
 - **UNIT/COMPONENT**: deterministic frontend/backend logic coverage.
-- **MANUAL**: requires a human OAuth, visual, provider, account, or destructive action.
-- **BLOCKED**: intentionally not executed because a required safe production fixture or credential is unavailable.
+- **MANUAL**: requires a human OAuth, visual, provider, account, worker, or destructive action;
+  automation may continue after a human securely captures the one-account storage state.
+- **BLOCKED**: only used when no safe execution layer exists and the missing evidence materially
+  affects release readiness. The revised V1 inventory has no such cases.
 
 Every row below has a classification. Production write and destructive rows are not silently
 treated as passed when they are manual or blocked.
@@ -192,29 +196,49 @@ RLS and lifecycle state coverage:
 | browser state | refresh, deep link, back/forward, filters/query/mode persistence | LOCAL-INTEGRATION |
 | privacy/XSS | text rendered as text; sanitized review helper; no unsafe HTML sink | UNIT/COMPONENT |
 
+### PG18 multi-user evidence map
+
+These cases are intentionally LOCAL-INTEGRATION, not live OAuth claims. The tests run PostgreSQL
+18.6 with `tandem_app` and `tandem_migrator` as non-superuser, `NOBYPASSRLS` roles and FORCE RLS.
+
+| Security behavior | Exact automated evidence |
+|---|---|
+| A/B/C Tandem visibility and direct SQL RLS | `backend/tests/test_auth_domain.py::test_invites_members_and_isolates_tandem_rows`; `test_tandem_rls_create_listing_and_direct_sql_boundaries` |
+| Invitation wrong-user rejection, join, reuse, revoke, expiry | `backend/tests/test_auth_domain.py::test_invites_members_and_isolates_tandem_rows`; `backend/tests/test_product_completion.py::test_invitation_revoke_resend_and_history_use_management_identifiers` |
+| Owner promotion/demotion, removal, leave, final-owner invariant | `backend/tests/test_product_completion.py::test_membership_roles_leave_removal_and_last_owner_race` |
+| Former-member attribution and deactivated membership behavior | `backend/tests/test_product_completion.py::test_account_lifecycle_is_explicit_and_preserves_shared_memory_anonymity` |
+| Reflection authorship and independent member reactions | `backend/tests/test_memory_domain.py::test_v1_reflections_recovery_duplicates_rediscovery_and_preferences` |
+| Cross-Tandem participant and duplicate isolation | `backend/tests/test_memory_domain.py::test_memory_vertical_slice_is_member_scoped_and_versioned`; `test_v1_reflections_recovery_duplicates_rediscovery_and_preferences` |
+| Private media identifiers and cleanup | `backend/tests/test_media_api.py::test_member_media_is_private_and_memory_delete_cleans_objects` |
+| Per-user Tandem preferences and resurfacing | `backend/tests/test_memory_domain.py::test_v1_reflections_recovery_duplicates_rediscovery_and_preferences` |
+| Protected-field mass assignment and upload validation | `backend/tests/test_security_hardening.py::test_sensitive_mutation_schemas_forbid_protected_properties`; `backend/tests/test_media_processing.py` |
+
 ## Production execution overlay
 
 These are explicit production execution cases, separate from their lower-layer coverage above.
-They are blocked until dedicated disposable identities, storage states, and provider/storage test
-fixtures are supplied:
+The live write suite uses one genuine Google identity. Multi-user authorization remains in the PG18
+suite and is not represented as live OAuth evidence.
 
 | ID | Production-only case | Exact unblock requirement | Coverage |
 |---|---|---|---|
-| LIVE-01 | authenticated owner A read/write smoke | locally saved A storage state from normal Google OAuth | BLOCKED |
-| LIVE-02 | authenticated B/C isolation and member lifecycle | locally saved B and C storage states plus unique E2E Tandem | BLOCKED |
-| LIVE-03 | live TMDb/Geoapify/B2 writes | explicit provider/storage test namespace and cleanup credentials | BLOCKED |
-| LIVE-04 | live permanent deletion/deactivate/delete-account | disposable identities and second destructive opt-in | BLOCKED |
-| LIVE-05 | live anniversary cron/manual trigger | Render job operator access and a disposable anniversary fixture | BLOCKED |
-| LIVE-06 | live media cleanup failure/retry | disposable B2 object namespace and injected failure fixture outside production | BLOCKED |
+| LIVE-01 | authenticated one-account read/write journey | one genuine OAuth storage state, explicit write opt-in, unique `[E2E]` namespace | MANUAL |
+| LIVE-02 | A/B/C isolation and membership lifecycle | PG18 tests `test_invites_members_and_isolates_tandem_rows`, `test_tandem_rls_create_listing_and_direct_sql_boundaries`, and `test_membership_roles_leave_removal_and_last_owner_race` | LOCAL-INTEGRATION |
+| LIVE-03 | live TMDb/Geoapify/B2 writes and private media | one-account storage state, live provider configuration, disposable B2 namespace, cleanup access | MANUAL |
+| LIVE-04 | irreversible account deletion and second-human OAuth flows | never use the available account for deletion; second human identity is required | MANUAL |
+| LIVE-05 | live anniversary cron/manual trigger | Render job operator access and a disposable anniversary fixture | MANUAL |
+| LIVE-06 | media cleanup failure/retry | PG18/storage mock coverage; production failure injection is unsafe | LOCAL-INTEGRATION |
 
 ## Coverage limitations and safe execution policy
 
-The production run is deliberately limited to unauthenticated/readiness checks until dedicated
-test identities and locally stored Playwright storage states are supplied. Production writes,
-account deletion, permanent deletion, B2 writes, and real OAuth cannot be claimed as automated
-without those fixtures. They are explicitly MANUAL or BLOCKED in the report rather than being
-silently skipped.
+The production run has a safe unauthenticated/readiness suite and a separate one-account write
+suite. The write suite is not run by default and requires a locally stored storage state captured
+through the normal Google flow. Account deletion and second-human OAuth remain MANUAL by design.
+Multi-user authorization is LOCAL-INTEGRATION under the exact PG18 production-shaped roles; it is
+not claimed as live OAuth evidence.
 
 No production test accepts arbitrary resource IDs. Any future write suite must require the exact
 production hostname, an explicit opt-in, a unique `[E2E]` namespace, run-local ID tracking, and a
 second opt-in for irreversible account or resource deletion.
+
+Revised classification totals remain 136: 6 LIVE-AUTOMATED, 104 LOCAL-INTEGRATION,
+11 UNIT/COMPONENT, 15 MANUAL, and 0 BLOCKED.

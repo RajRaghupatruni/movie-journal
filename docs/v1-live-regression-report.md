@@ -4,11 +4,12 @@
 
 **TANDEM V1 RELEASE VALIDATION: FAIL**
 
-This verdict is conservative: the deployed V1 passed all safe live read-only checks and all
-local/PG18 regression suites, but authenticated production writes, A/B/C production isolation,
-live provider/media writes, scheduled-worker execution, and destructive account/resource flows
-were not executed because dedicated disposable production identities and storage/provider
-fixtures were not available. They are explicitly blocked below.
+The deployed V1 passed all safe live read-only checks and all local/PG18 regression suites. The
+one-account authenticated production write/provider suite is implemented but has not been run in
+this session because the operator has not supplied a local storage state. A/B/C authorization is
+not blocked: it is proven in the exact PG18 production-shaped integration suite. The current FAIL
+is therefore pending critical live write-wiring evidence, not caused by the lack of additional
+Google accounts.
 
 ## Build and database under test
 
@@ -28,10 +29,10 @@ regression cases**:
 | Classification | Count |
 |---|---:|
 | LIVE-AUTOMATED | 6 |
-| LOCAL-INTEGRATION | 102 |
+| LOCAL-INTEGRATION | 104 |
 | UNIT/COMPONENT | 11 |
-| MANUAL | 11 |
-| BLOCKED | 6 |
+| MANUAL | 15 |
+| BLOCKED | 0 |
 | Total | 136 |
 
 Inventory counts:
@@ -55,6 +56,7 @@ Inventory counts:
 | Ruff format check | passed; 80 files formatted |
 | Alembic current/check | `0016_v1_completion (head)`; no drift |
 | Live read-only Playwright | 2 passed |
+| Live one-account write/provider Playwright | not run; operator storage state required |
 | Secret scan | 185 paths scanned, 0 findings |
 | Failed tests | 0 |
 | Skipped tests | 0 |
@@ -74,27 +76,28 @@ It verified:
 - HSTS, CSP, no-store/cache, frame, referrer, and content-type security headers were present.
 
 Google OAuth itself was not completed automatically. The normal OAuth entry point remains real;
-no test-login endpoint or bypass was added.
+no test-login endpoint or bypass was added. The one-account continuation is implemented in
+`single-account-write.spec.ts` and requires the explicit `TANDEM_LIVE_WRITE=true` opt-in.
 
 ## Feature-area results
 
 | Area | Result | Evidence / limitation |
 |---|---|---|
-| Global and scoped navigation | LOCAL-INTEGRATION | Mocked browser acceptance plus frontend/backend tests; live authenticated scope blocked |
-| Add Memory categories | LOCAL-INTEGRATION | Form/unit/API coverage for movie/place/trip/activity/custom; live provider writes blocked |
-| Movie and place providers | MANUAL | Real TMDb/Geoapify search requires a safe live test namespace and credentials |
-| Photos and private media | LOCAL-INTEGRATION | Validation/storage mocks and API coverage; live B2 upload/read/cleanup blocked |
+| Global and scoped navigation | MANUAL | One-account live navigation is implemented; PG18/backend and mocked browser coverage already pass |
+| Add Memory categories | MANUAL | One-account live creation is implemented; local category/API coverage passes |
+| Movie and place providers | MANUAL | One-account live TMDb/Geoapify search requires the operator storage state and production provider wiring |
+| Photos and private media | MANUAL | One-account B2 upload/read/delete is implemented; local private-media coverage passes |
 | Memory detail/reflections/reactions | LOCAL-INTEGRATION | Backend and mocked acceptance coverage |
-| Recently Deleted | LOCAL-INTEGRATION | Delete/restore/purge logic covered locally; live permanent deletion blocked |
-| Invitations | LOCAL-INTEGRATION | Pending/accepted/declined/revoked/expired/resend and isolation coverage; live OAuth continuation blocked |
+| Recently Deleted | LOCAL-INTEGRATION | Delete/restore/purge logic covered locally; one-account live recovery is implemented |
+| Invitations | LOCAL-INTEGRATION | Pending/accepted/declined/revoked/expired/resend and isolation coverage; second-human OAuth remains manual |
 | Members/owners | LOCAL-INTEGRATION | A/B/C, owner/member, final-owner, removal and concurrency tests |
 | People & settings | LOCAL-INTEGRATION | Preferences, Tandem settings, role controls and defaults covered locally |
 | Notifications | LOCAL-INTEGRATION | Read/read-all, invitation/member/anniversary/dedupe logic covered locally |
 | Rediscovery | LOCAL-INTEGRATION | Shuffle, year review, collections and eligibility logic covered locally |
-| Account lifecycle | LOCAL-INTEGRATION | Deactivate/reactivate/session cleanup locally; live irreversible deletion blocked |
-| Anniversary worker | LOCAL-INTEGRATION | Candidate, timezone, outbox, retry/cancel tests; live cron trigger blocked |
+| Account lifecycle | MANUAL | Deactivate/reactivate may use the one account if safe; account deletion is prohibited for the available identity |
+| Anniversary worker | MANUAL | Candidate/timezone/outbox tests pass; live manual Render trigger requires operator access |
 | Browser navigation/visual state | LOCAL-INTEGRATION | Existing desktop mocked acceptance screenshots and history/mode tests |
-| Security/RLS | LOCAL-INTEGRATION + LIVE-AUTOMATED | PG18 A/B/C and adversarial identifier coverage; unauthenticated live boundary passed |
+| Security/RLS | LOCAL-INTEGRATION | PG18 A/B/C and adversarial identifier coverage; unauthenticated live boundary also passed |
 
 ## Defects
 
@@ -106,16 +109,20 @@ to a JSON endpoint was blocked by the automation browser client, so the same rea
 verified through the HTTP client and Playwright request fixture; this is a test-tool limitation,
 not a product defect.
 
-## Blocked production cases and unblock actions
+## Manual production cases and operator inputs
 
-1. Authenticated owner A smoke and writes: capture a dedicated A storage state through normal Google OAuth.
-2. B/C isolation and membership lifecycle: capture dedicated B and C storage states and use a unique `[E2E]` Tandem.
-3. TMDb, Geoapify, and B2 live writes: provision an explicit disposable provider/storage namespace and cleanup plan.
-4. Permanent deletion, deactivation, and account deletion: use disposable identities and a second destructive opt-in.
-5. Anniversary cron/manual execution: obtain Render operator access and a disposable anniversary fixture.
-6. B2 cleanup failure/retry: use a disposable object namespace and inject failure outside production.
+1. Capture the available account's local Playwright storage state through normal Google OAuth.
+2. Run the write suite with `TANDEM_LIVE_PRODUCTION=true`, `TANDEM_LIVE_WRITE=true`, a unique
+   `TANDEM_E2E_NAMESPACE`, and the exact production URL.
+3. Confirm the production account can safely create and delete only `[E2E]` Tandems and memories;
+   do not delete the Google-backed account.
+4. Provide Render operator access for the anniversary worker's safe manual run.
+5. Treat second-human invite acceptance/wrong-account continuation and cross-account live B2
+   denial as MANUAL; their lower-layer evidence is the PG18 security suite.
+6. Keep permanent account deletion and injected B2 failure outside production; use disposable
+   staging identities/fixtures if those flows need manual confirmation.
 
-The storage-state procedure is documented in [`LIVE_REGRESSION_AUTH.md`](LIVE_REGRESSION_AUTH.md).
+The one-account storage-state and run procedure is documented in [`LIVE_REGRESSION_AUTH.md`](LIVE_REGRESSION_AUTH.md).
 Storage state files, cookies, tokens, and provider credentials remain gitignored and were not
 printed or committed.
 
