@@ -8,6 +8,7 @@ from app.api.auth import build_google_oauth
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
 from app.api.invitations import router as invitation_router
+from app.api.memories import router as memory_router
 from app.api.tandems import router as tandem_router
 from app.core.config import Settings, load_settings
 from app.core.logging import configure_logging
@@ -36,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router, prefix="/api")
     app.include_router(auth_router)
     app.include_router(tandem_router, prefix="/api")
+    app.include_router(memory_router, prefix="/api")
     app.include_router(invitation_router)
     if settings.app_env == "development" and settings.cors_origins:
         app.add_middleware(

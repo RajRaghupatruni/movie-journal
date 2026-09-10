@@ -1,4 +1,4 @@
-"""SQLAlchemy models for identity, tandem membership and invitations."""
+"""SQLAlchemy models for identity, tandem membership, memories and invitations."""
 
 from app.models.domain import (
     AuthSession,
@@ -8,11 +8,17 @@ from app.models.domain import (
     TandemMember,
     User,
 )
+from app.models.memory import ActivityEvent, Memory, MemoryParticipant, MemoryTag, Tag
 
 __all__ = [
     "AuthSession",
+    "ActivityEvent",
     "Invitation",
+    "Memory",
+    "MemoryParticipant",
+    "MemoryTag",
     "OAuthState",
+    "Tag",
     "Tandem",
     "TandemMember",
     "User",

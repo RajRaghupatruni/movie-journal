@@ -1,4 +1,22 @@
-# Foundation verification — 2026-09-09
+# Verification — memory-domain vertical slice — 2026-09-09
+
+## Memory-domain milestone
+
+The first PostgreSQL-backed memory vertical slice is implemented in migration `0008_memory_domain`.
+The backend integration suite was run against PostgreSQL 16 with a dedicated `NOSUPERUSER
+NOBYPASSRLS` runtime role: 24 tests passed. It covers the A/B/C member boundary, direct RLS
+read/update denial, all five categories, strict metadata and field validation, normalized tags,
+pagination/filter/search, optimistic concurrency, participant changes, append-only activity
+events, and hard deletion. `alembic downgrade base → upgrade head → check` passed. Frontend
+Vitest reports 15 tests passed across 5 files; typecheck and production build passed. Compose
+backend/frontend rebuild passed and all four local services became healthy.
+
+The frontend's authenticated Keepsake path now reads `/api/me`, `/api/me/tandems`, members, and
+memory endpoints. Today, timeline, memory detail, add/edit/delete, Explore, and Calendar no
+longer use fixture data. Photo/anniversary enrichment remains intentionally deferred.
+
+The two frontend lint warnings below remain pre-existing warnings in legacy components; there
+are no lint errors. The backend suite reports only upstream Starlette/AnyIO deprecation warnings.
 
 ## Passed
 
