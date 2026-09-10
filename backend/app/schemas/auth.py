@@ -9,11 +9,12 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    email: str
+    email: str | None
     display_name: str
     avatar_url: str | None
     timezone: str = "UTC"
     created_at: datetime
+    is_active: bool = True
 
 
 class NotificationPreferenceResponse(BaseModel):
@@ -56,6 +57,7 @@ class InvitationSummary(BaseModel):
     status: str
     expires_at: datetime
     inviter_name: str | None = None
+    created_at: datetime | None = None
 
 
 class InvitationCreate(BaseModel):
@@ -66,6 +68,31 @@ class InvitationCreate(BaseModel):
 class InvitationCreated(InvitationSummary):
     # This is the one-time raw URL reference. token_hash is never exposed.
     reference: str
+
+
+class NotificationResponse(BaseModel):
+    id: UUID
+    type: str
+    actor_user_id: UUID | None
+    actor_name: str | None = None
+    tandem_id: UUID | None
+    tandem_name: str | None = None
+    memory_id: UUID | None
+    invitation_id: UUID | None
+    payload: dict
+    dedupe_key: str
+    created_at: datetime
+    read_at: datetime | None
+    archived_at: datetime | None
+
+
+class NotificationListResponse(BaseModel):
+    items: list[NotificationResponse]
+    unread_count: int
+
+
+class AccountAction(BaseModel):
+    confirmation: str
 
 
 class TandemCreate(BaseModel):
@@ -83,10 +110,15 @@ class TandemResponse(BaseModel):
 
     id: UUID
     name: str
-    created_by: UUID
+    created_by: UUID | None
     timezone: str
     created_at: datetime
     updated_at: datetime
+
+
+class TandemSummaryResponse(TandemResponse):
+    member_count: int = 0
+    owner_count: int = 0
 
 
 class MemberResponse(BaseModel):

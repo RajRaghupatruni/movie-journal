@@ -83,3 +83,21 @@ the test. Record timestamps and the `X-Request-ID` for any failure.
   same-origin UI actions work.
 - [ ] Inspect logs for the whole run: no notes, titles, email invitation references, session/OAuth
   tokens, photo bytes, provider keys, SQL credentials, or stack traces are present.
+
+## P0 completion journey
+
+- [ ] Create two Tandems for User A and switch between them; confirm each selected Tandem keeps
+  its own Timeline, Calendar, Explore, and On This Day context.
+- [ ] Add a memory in Tandem 1 and confirm members of Tandem 2 cannot access it through a direct
+  memory, media, notification, or global-view request.
+- [ ] Confirm User B can edit only memories User B created, while the creator can edit or delete
+  their own memory; verify a concurrent stale-version edit returns 409.
+- [ ] Promote and demote a member, remove a member, and test that the last owner cannot leave,
+  be removed, or demote themselves.
+- [ ] Deactivate an account with `DEACTIVATE`, confirm delivery state and memberships are gone,
+  then sign in again and reactivate without automatic membership restoration.
+- [ ] Export the account and verify the download contains authorized metadata and media
+  descriptors but no media bytes, object-store credentials, notes from inaccessible Tandems, or
+  unbounded query results.
+- [ ] Trigger an invite, acceptance, memory-add, member-change, and owner-change event; verify
+  the notification bell updates on focus and does not surface another Tandem's event.

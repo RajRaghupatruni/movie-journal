@@ -214,7 +214,7 @@ class MemoryPatch(BaseModel):
 class MemberSummary(BaseModel):
     user_id: UUID
     display_name: str
-    email: str
+    email: str | None
     avatar_url: str | None
 
 
@@ -226,7 +226,7 @@ class MemoryMediaResponse(BaseModel):
     width: int
     height: int
     original_filename: str | None
-    created_by: UUID
+    created_by: UUID | None
     created_at: datetime
     display_order: int
     url: str | None = None
@@ -237,6 +237,7 @@ class MemoryResponse(BaseModel):
 
     id: UUID
     tandem_id: UUID
+    tandem_name: str | None = None
     category: MemoryCategory
     title: str
     local_date: date
@@ -244,7 +245,7 @@ class MemoryResponse(BaseModel):
     timezone: str
     notes: str | None
     rating: int | None
-    created_by: UUID
+    created_by: UUID | None
     created_at: datetime
     updated_at: datetime
     version: int

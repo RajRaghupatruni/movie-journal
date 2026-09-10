@@ -85,10 +85,16 @@ def test_local_cors_only(settings):
     assert "access-control-allow-origin" not in rejected.headers
 
 
-def test_production_does_not_enable_local_cors(settings, monkeypatch):
+def test_production_does_not_enable_local_cors(settings, monkeypatch, tmp_path):
     # The unit test intentionally uses an unreachable fixture database; runtime-role
-    # validation is covered by the PostgreSQL integration suite.
+    # validation is covered by the PostgreSQL integration suite. Production startup
+    # still requires compiled frontend assets, so provide the smallest valid fixture
+    # instead of weakening that production guard or building the frontend in pytest.
     monkeypatch.setattr("app.main.assert_runtime_role", lambda *_args: None)
+    static_dir = tmp_path / "dist"
+    static_dir.mkdir()
+    (static_dir / "index.html").write_text('<div id="root"></div>', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
     settings.app_env = "production"
     app = create_app(settings)
     with TestClient(app) as client:

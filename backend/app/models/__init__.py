@@ -3,8 +3,10 @@
 from app.models.domain import (
     AuthSession,
     Invitation,
+    Notification,
     NotificationOutbox,
     OAuthState,
+    StorageCleanupFailure,
     Tandem,
     TandemMember,
     User,
@@ -27,4 +29,6 @@ __all__ = [
     "User",
     "UserNotificationPreference",
     "NotificationOutbox",
+    "Notification",
+    "StorageCleanupFailure",
 ]

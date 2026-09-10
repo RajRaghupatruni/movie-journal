@@ -40,3 +40,62 @@
 .read-the-docs {
   color: #888;
 }
+/* Product completion surfaces */
+#root { max-width: none; margin: 0; padding: 0; text-align: left; }
+.tandem-switcher-wrap, .notification-wrap { position: relative; }
+.switcher-mark, .switcher-option-mark { display: inline-grid; place-items: center; border-radius: 50%; background: #ead4c5; color: #713f45; font-family: Georgia, serif; }
+.switcher-mark { width: 25px; height: 25px; font-size: 15px; }
+.tandem-switcher-menu { position: absolute; top: calc(100% + 12px); right: 0; z-index: 20; width: 285px; padding: 14px; border: 1px solid #e8ddd4; border-radius: 18px; background: #fffaf5; box-shadow: 0 18px 45px rgba(83, 47, 42, .16); }
+.switcher-menu-kicker, .capacity-note { color: #927e72; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+.switcher-option, .switcher-create { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; border: 0; border-radius: 12px; background: transparent; color: #302726; text-align: left; cursor: pointer; }
+.switcher-option:hover, .switcher-option.selected, .switcher-create:hover { background: #f4ebe3; }
+.switcher-option-mark { flex: 0 0 30px; width: 30px; height: 30px; }
+.switcher-option span:nth-child(2) { flex: 1; }
+.switcher-option strong, .switcher-option small { display: block; }
+.switcher-option small { margin-top: 2px; color: #97877e; font-size: 11px; }
+.switcher-create { margin-top: 8px; padding-top: 13px; border-top: 1px solid #eadfd6; color: #8a4357; }
+.notification-bell { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #e8ddd4; border-radius: 50%; background: #fffaf5; color: #6e5550; cursor: pointer; }
+.notification-bell:hover { background: #f4ebe3; }
+.notification-badge { position: absolute; top: -4px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 10px; background: #8f4357; color: #fff; font: 10px/17px Arial, sans-serif; text-align: center; }
+.notification-drawer { position: fixed; top: 76px; right: 28px; z-index: 30; width: 370px; max-height: calc(100vh - 102px); overflow: auto; padding: 20px; border: 1px solid #e8ddd4; border-radius: 20px; background: #fffaf5; box-shadow: 0 24px 60px rgba(83, 47, 42, .18); }
+.notification-drawer-head, .management-heading, .danger-zone { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.notification-drawer h2, .member-actions-panel h2 { margin: 3px 0 0; font-family: Georgia, serif; font-weight: 500; }
+.notification-list { display: grid; gap: 3px; margin-top: 18px; }
+.notification-item { display: flex; gap: 10px; width: 100%; padding: 12px 10px; border: 0; border-radius: 12px; background: #f4ebe3; color: #342928; text-align: left; cursor: pointer; }
+.notification-item.read { background: transparent; }
+.notification-item strong, .notification-item small { display: block; }
+.notification-item small { margin-top: 4px; color: #917e76; font-size: 11px; }
+.notification-dot { width: 7px; height: 7px; margin-top: 5px; border-radius: 50%; background: #b86d57; }
+.notification-item.read .notification-dot { background: #d8c9bf; }
+.notification-empty { padding: 45px 16px 28px; color: #937f75; text-align: center; }
+.notification-empty h3 { margin: 12px 0 5px; color: #453633; font-family: Georgia, serif; font-weight: 500; }
+.notification-empty p { margin: 0; font-size: 13px; line-height: 1.6; }
+.tandem-management-wrap { padding-top: 0; }
+.member-actions-panel { max-width: none; }
+.tandem-details-form { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; align-items: end; gap: 12px; margin: 20px 0; padding-bottom: 18px; border-bottom: 1px solid #eadfd6; }
+.tandem-details-form label { min-width: 0; }
+.member-row-actions { display: flex; gap: 11px; margin-left: auto; }
+.danger-link, .button-danger { color: #9a4e55 !important; }
+.invite-form { display: flex; align-items: end; gap: 12px; margin-top: 20px; padding-top: 18px; border-top: 1px solid #eadfd6; }
+.invite-form label { flex: 1; }
+.invite-link-box { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; margin-top: 14px; padding: 12px; border-radius: 12px; background: #f4ebe3; }
+.invite-link-box .capacity-note { grid-column: 1 / -1; }
+.invite-link-box input { min-width: 0; border: 0; background: transparent; color: #684640; font-size: 12px; }
+.invite-link-box .text-action { align-self: center; }
+.pending-invites { margin-top: 22px; padding-top: 18px; border-top: 1px solid #eadfd6; }
+.pending-invite { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; color: #4c3d39; font-size: 13px; }
+.pending-invite span { display: grid; gap: 3px; }
+.pending-invite small { color: #9b8378; text-transform: capitalize; }
+.danger-zone { align-items: center; margin-top: 24px; padding-top: 18px; border-top: 1px solid #e6d6d2; }
+.danger-zone p { max-width: 500px; margin: 6px 0 0; color: #937f75; font-size: 13px; line-height: 1.5; }
+.privacy-card { margin-top: 20px; }
+.privacy-card p { max-width: 720px; color: #7d6d65; line-height: 1.7; }
+.tandem-label { color: #8f4357; }
+.calendar-cell-tandem { display: block; overflow: hidden; color: #84766f; font-size: .66rem; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-day-memory-list { display: grid; gap: .55rem; margin-top: 1rem; }
+.calendar-day-memory { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; padding: .8rem .9rem; border: 1px solid #e7ddd6; border-radius: .7rem; background: #fffaf6; color: inherit; text-align: left; }
+.calendar-day-memory:hover { border-color: #a55b55; }
+.calendar-day-memory span { display: grid; gap: .18rem; }
+.calendar-day-memory strong { color: #8f4357; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; }
+.calendar-day-memory small { color: #302b2a; font-size: .88rem; }
+@media (max-width: 760px) { .notification-drawer { top: 66px; right: 12px; left: 12px; width: auto; } .invite-form { align-items: stretch; flex-direction: column; } .tandem-details-form { grid-template-columns: 1fr; } .member-row-actions { flex-wrap: wrap; } }

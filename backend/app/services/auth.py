@@ -49,20 +49,50 @@ def get_current_user(
     # so a pooled connection cannot carry this identity to a later request.
     set_current_user_id(db, str(session.user_id))
     user = db.get(User, session.user_id)
-    if user is None:
+    if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
         )
     return user
 
 
-def create_auth_session(db: Session, user_id, settings: Settings) -> str:
+def get_current_user_including_inactive(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    """Only lifecycle endpoints use this dependency; ordinary routes require active users."""
+
+    settings: Settings = request.app.state.settings
+    raw_token = request.cookies.get(settings.session_cookie_name)
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+        )
+    session = db.scalar(
+        select(AuthSession).where(
+            AuthSession.token_hash == hash_secret(raw_token),
+            AuthSession.expires_at > datetime.now(UTC),
+        )
+    )
+    user = db.get(User, session.user_id) if session else None
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+        )
+    set_current_user_id(db, str(user.id))
+    return user
+
+
+def create_auth_session(
+    db: Session, user_id, settings: Settings, *, reactivation_only: bool = False
+) -> str:
     raw_token = new_secret()
     db.add(
         AuthSession(
             user_id=user_id,
             token_hash=hash_secret(raw_token),
             expires_at=datetime.now(UTC) + timedelta(seconds=settings.session_ttl_seconds),
+            reactivation_only=reactivation_only,
         )
     )
     return raw_token
