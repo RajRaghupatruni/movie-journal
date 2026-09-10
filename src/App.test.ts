@@ -48,29 +48,32 @@ describe('account and Tandem management surfaces', () => {
     expect(view.container.querySelector('a[href="/api/me/export"]')).not.toBeNull()
     expect(view.container.textContent).toContain('Private by default')
 
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const requestConfirm = vi.fn()
     const buttons = Array.from(view.container.querySelectorAll('button'))
     const deactivate = buttons.find((button) => button.textContent?.includes('Deactivate account')) as HTMLButtonElement
     act(() => deactivate.click())
-    expect(confirm).toHaveBeenCalledOnce()
+    expect(requestConfirm).not.toHaveBeenCalled()
     expect(onDeactivate).not.toHaveBeenCalled()
 
-    confirm.mockReturnValue(true)
-    act(() => deactivate.click())
-    expect(onDeactivate).toHaveBeenCalledOnce()
-
-    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('DELETE')
-    const remove = buttons.find((button) => button.textContent?.includes('Delete account')) as HTMLButtonElement
-    await act(async () => remove.click())
-    expect(prompt).toHaveBeenCalledOnce()
-    expect(onDelete).toHaveBeenCalledOnce()
     view.unmount()
+    const confirmedView = mount(createElement(SettingsScreen, { preferences, onSave: vi.fn(), onDeactivate, onDelete, onRequestConfirm: requestConfirm } as never))
+    const confirmedDeactivate = Array.from(confirmedView.container.querySelectorAll('button')).find((button) => button.textContent?.includes('Deactivate account')) as HTMLButtonElement
+    act(() => confirmedDeactivate.click())
+    expect(requestConfirm).toHaveBeenCalledOnce()
+    await act(async () => requestConfirm.mock.calls[0][0].onConfirm())
+    expect(onDeactivate).toHaveBeenCalledOnce()
+    const remove = Array.from(confirmedView.container.querySelectorAll('button')).find((button) => button.textContent?.includes('Delete account')) as HTMLButtonElement
+    await act(async () => remove.click())
+    expect(requestConfirm).toHaveBeenCalledTimes(2)
+    await act(async () => requestConfirm.mock.calls[1][0].onConfirm())
+    expect(onDelete).toHaveBeenCalledOnce()
+    confirmedView.unmount()
   })
 
   it('renders the explicit reactivation flow', async () => {
     const onReactivate = vi.fn()
     const view = mount(createElement(ReactivationScreen, { user: { display_name: 'Former member' }, onReactivate } as never))
-    expect(view.container.textContent).toContain('previous Tandem memberships will not be restored automatically')
+    expect(view.container.textContent).toContain('memberships that still exist and your shared history will return')
     await act(async () => (view.container.querySelector('button') as HTMLButtonElement).click())
     expect(onReactivate).toHaveBeenCalledOnce()
     view.unmount()
@@ -84,11 +87,11 @@ describe('account and Tandem management surfaces', () => {
     const promoteMember = vi.spyOn(tandemApi, 'promoteMember').mockResolvedValue({} as never)
     const removeMember = vi.spyOn(tandemApi, 'removeMember').mockResolvedValue()
     const onRefresh = vi.fn().mockResolvedValue(undefined)
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const requestConfirm = vi.fn()
     const soloView = mount(createElement(TandemManagement, {
       tandem: { id: 'tandem-1', name: 'Sunday table', timezone: 'UTC' },
       members: [{ user_id: 'owner-1', display_name: 'Owner', role: 'OWNER' }],
-      memories: [{ id: 'memory-1' }], currentUser: { id: 'owner-1' }, onRefresh,
+      memories: [{ id: 'memory-1' }], currentUser: { id: 'owner-1' }, onRefresh, onRequestConfirm: requestConfirm,
     } as never))
     await act(async () => {})
     const soloEmail = soloView.container.querySelector('input[type="email"]') as HTMLInputElement
@@ -97,8 +100,7 @@ describe('account and Tandem management surfaces', () => {
       soloEmail.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await act(async () => (soloView.container.querySelector('.invite-form') as HTMLFormElement).dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
-    expect(confirm).toHaveBeenCalledWith('This person will be able to see the existing memories in this Tandem. Continue?')
-    expect(createInvitation).not.toHaveBeenCalled()
+    expect(createInvitation).toHaveBeenCalledWith('tandem-1', 'person@example.test')
     soloView.unmount()
 
     const members = [
@@ -107,7 +109,7 @@ describe('account and Tandem management surfaces', () => {
     ]
     const view = mount(createElement(TandemManagement, {
       tandem: { id: 'tandem-1', name: 'Sunday table', timezone: 'UTC' }, members,
-      memories: [{ id: 'memory-1' }], currentUser: { id: 'owner-1' }, onRefresh,
+      memories: [{ id: 'memory-1' }], currentUser: { id: 'owner-1' }, onRefresh, onRequestConfirm: requestConfirm,
     } as never))
     await act(async () => {})
     expect(invitations).toHaveBeenCalledWith('tandem-1')
@@ -118,7 +120,6 @@ describe('account and Tandem management surfaces', () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(email, 'person@example.test')
       email.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    confirm.mockReturnValue(true)
     await act(async () => (view.container.querySelector('.invite-form') as HTMLFormElement).dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
     expect(createInvitation).toHaveBeenCalledWith('tandem-1', 'person@example.test')
 
@@ -127,11 +128,10 @@ describe('account and Tandem management surfaces', () => {
     expect(promoteMember).toHaveBeenCalledWith('tandem-1', 'member-1')
 
     const remove = Array.from(view.container.querySelectorAll('button')).find((button) => button.textContent?.includes('Remove')) as HTMLButtonElement
-    confirm.mockReturnValue(false)
     await act(async () => remove.click())
     expect(removeMember).not.toHaveBeenCalled()
-    confirm.mockReturnValue(true)
-    await act(async () => remove.click())
+    expect(requestConfirm).toHaveBeenCalled()
+    await act(async () => requestConfirm.mock.calls.at(-1)?.[0].onConfirm())
     expect(removeMember).toHaveBeenCalledWith('tandem-1', 'member-1')
     view.unmount()
   })

@@ -16,6 +16,12 @@ export interface ApiPreferences {
   notification_hour: number
 }
 
+export interface ApiTandemPreference {
+  tandem_id: string
+  resurfacing_enabled: boolean
+  routine_notifications_enabled: boolean
+}
+
 export interface ApiTandem {
   id: string
   name: string
@@ -39,6 +45,7 @@ export interface ApiMemory {
   category: MemoryCategory
   title: string
   local_date: string
+  end_date?: string | null
   occurred_at: string | null
   timezone: string
   notes: string | null
@@ -53,6 +60,21 @@ export interface ApiMemory {
   participants: Array<Pick<ApiMember, 'user_id' | 'display_name'>>
   tags: string[]
   media: ApiMedia[]
+  reflections?: ApiReflection[]
+  my_reflection?: ApiReflection | null
+  deleted_at?: string | null
+  deletion_expires_at?: string | null
+}
+
+export interface ApiReflection {
+  id: string
+  user_id: string
+  display_name: string
+  rating: number | null
+  note: string | null
+  reaction: 'loved' | 'nostalgic' | 'funny' | 'favorite' | null
+  created_at: string
+  updated_at: string
 }
 
 export interface ApiAnniversary {
@@ -193,6 +215,8 @@ export const tandemApi = {
   markNotificationRead: (id: string) => request<ApiNotification>(`/api/me/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: () => request<void>('/api/me/notifications/read-all', { method: 'POST' }),
   tandem: (tandemId: string) => request<ApiTandem>(`/api/tandems/${tandemId}`),
+  tandemPreferences: (tandemId: string) => request<ApiTandemPreference>(`/api/tandems/${tandemId}/preferences`),
+  updateTandemPreferences: (tandemId: string, input: Partial<ApiTandemPreference>) => request<ApiTandemPreference>(`/api/tandems/${tandemId}/preferences`, { method: 'PATCH', body: JSON.stringify(input) }),
   updateTandem: (tandemId: string, input: Partial<Pick<ApiTandem, 'name' | 'timezone'>>) => request<ApiTandem>(`/api/tandems/${tandemId}`, { method: 'PATCH', body: JSON.stringify(input) }),
   promoteMember: (tandemId: string, userId: string) => request<ApiMember>(`/api/tandems/${tandemId}/members/${userId}/promote`, { method: 'POST' }),
   demoteMember: (tandemId: string, userId: string) => request<ApiMember>(`/api/tandems/${tandemId}/members/${userId}/demote`, { method: 'POST' }),
@@ -200,10 +224,10 @@ export const tandemApi = {
   leaveTandem: (tandemId: string) => request<void>(`/api/tandems/${tandemId}/leave`, { method: 'POST' }),
   deleteTandem: (tandemId: string, confirmation: string) => request<void>(`/api/tandems/${tandemId}`, { method: 'DELETE', body: JSON.stringify({ confirmation }) }),
   invitations: (tandemId: string) => request<Array<{ id: string; tandem_id: string; tandem_name: string; invited_email: string; status: string; expires_at: string; inviter_name?: string | null; created_at?: string | null }>>(`/api/tandems/${tandemId}/invitations`),
-  createInvitation: (tandemId: string, invited_email: string) => request<{ reference: string; invited_email: string }>(`/api/tandems/${tandemId}/invitations`, { method: 'POST', body: JSON.stringify({ invited_email }) }),
+  createInvitation: (tandemId: string, invited_email: string) => request<{ reference: string; invited_email: string; memory_count?: number; earliest_memory_date?: string | null }>(`/api/tandems/${tandemId}/invitations`, { method: 'POST', body: JSON.stringify({ invited_email }) }),
   revokeInvitation: (tandemId: string, reference: string) => request<void>(`/api/tandems/${tandemId}/invitations/${encodeURIComponent(reference)}/revoke`, { method: 'POST' }),
   resendInvitation: (tandemId: string, reference: string) => request<{ reference: string; invited_email: string }>(`/api/tandems/${tandemId}/invitations/${encodeURIComponent(reference)}/resend`, { method: 'POST' }),
-  invitation: (reference: string) => request<{ id: string; tandem_id: string; tandem_name: string; invited_email: string; status: string; expires_at: string; inviter_name?: string | null }>(`/api/invitations/${encodeURIComponent(reference)}`),
+  invitation: (reference: string) => request<{ id: string; tandem_id: string; tandem_name: string; invited_email: string; status: string; expires_at: string; inviter_name?: string | null; memory_count?: number; earliest_memory_date?: string | null }>(`/api/invitations/${encodeURIComponent(reference)}`),
   acceptInvitation: (reference: string) => request<{ tandem_id: string; tandem_name: string; status: string }>(`/api/invitations/${encodeURIComponent(reference)}/accept`, { method: 'POST' }),
   members: (tandemId: string) => request<ApiMember[]>(`/api/tandems/${tandemId}/members`),
   onThisDay: (tandemId: string) => request<ApiOnThisDay>(`/api/tandems/${tandemId}/on-this-day`),
@@ -216,6 +240,15 @@ export const tandemApi = {
   createMemory: (tandemId: string, input: MemoryInput) => request<ApiMemory>(`/api/tandems/${tandemId}/memories`, { method: 'POST', body: JSON.stringify(input) }),
   updateMemory: (tandemId: string, memoryId: string, input: MemoryPatchInput) => request<ApiMemory>(`/api/tandems/${tandemId}/memories/${memoryId}`, { method: 'PATCH', body: JSON.stringify(input) }),
   deleteMemory: (tandemId: string, memoryId: string, expectedVersion?: number) => request<void>(`/api/tandems/${tandemId}/memories/${memoryId}${expectedVersion ? `?expected_version=${expectedVersion}` : ''}`, { method: 'DELETE' }),
+  deletedMemories: (tandemId: string) => request<{ items: ApiMemory[] }>(`/api/tandems/${tandemId}/memories/deleted`),
+  restoreMemory: (tandemId: string, memoryId: string) => request<ApiMemory>(`/api/tandems/${tandemId}/memories/${memoryId}/restore`, { method: 'POST' }),
+  permanentlyDeleteMemory: (tandemId: string, memoryId: string) => request<void>(`/api/tandems/${tandemId}/memories/${memoryId}/permanent`, { method: 'DELETE' }),
+  saveReflection: (tandemId: string, memoryId: string, input: { rating?: number | null; note?: string | null; reaction?: ApiReflection['reaction'] }) => request<ApiReflection>(`/api/tandems/${tandemId}/memories/${memoryId}/reflections/me`, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteReflection: (tandemId: string, memoryId: string) => request<void>(`/api/tandems/${tandemId}/memories/${memoryId}/reflections/me`, { method: 'DELETE' }),
+  duplicateMemories: (tandemId: string, input: { category: MemoryCategory; local_date: string; title: string; provider_id?: string }) => { const params = new URLSearchParams({ category: input.category, local_date: input.local_date, title: input.title }); if (input.provider_id) params.set('provider_id', input.provider_id); return request<Array<{ id: string; title: string; local_date: string; category: MemoryCategory }>>(`/api/tandems/${tandemId}/memories/duplicates?${params}`) },
+  shuffle: (tandemId?: string, seed?: string) => request<{ memory: ApiMemory | null; message?: string }>(`/api/me/rediscovery/shuffle${tandemId ? `?tandem_id=${tandemId}` : ''}${seed ? `${tandemId ? '&' : '?'}seed=${encodeURIComponent(seed)}` : ''}`),
+  yearReview: (year: number, tandemId?: string) => request<Record<string, unknown>>(`/api/me/rediscovery/year-review?year=${year}${tandemId ? `&tandem_id=${tandemId}` : ''}`),
+  throwbackCollections: (tandemId?: string) => request<{ items: Array<{ key: string; title: string; memory_ids: string[] }> }>(`/api/me/rediscovery/collections${tandemId ? `?tandem_id=${tandemId}` : ''}`),
   searchMovies: (query: string) => request<{ items: ApiMovieSearchResult[] }>(`/api/integrations/movies/search?q=${encodeURIComponent(query)}`),
   movie: (tmdbId: number) => request<ApiMovieSearchResult>(`/api/integrations/movies/${tmdbId}`),
   searchPlaces: (query: string) => request<{ items: ApiPlaceSearchResult[] }>(`/api/integrations/places/search?q=${encodeURIComponent(query)}`),
