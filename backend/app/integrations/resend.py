@@ -15,6 +15,7 @@ class EmailDeliveryError(RuntimeError):
 
 class ResendEmailAdapter:
     def __init__(self, settings: Settings):
+        self.settings = settings
         self.api_key = (
             settings.resend_api_key.get_secret_value() if settings.resend_api_key else None
         )
@@ -22,6 +23,8 @@ class ResendEmailAdapter:
         self.timeout = settings.provider_timeout_seconds
 
     def send(self, *, recipient: str, subject: str, html: str, text: str) -> str:
+        if self.settings.app_env != "production" and not self.settings.allow_non_production_emails:
+            raise EmailDeliveryError("Non-production email delivery is disabled", transient=False)
         if not self.api_key or not self.from_address:
             raise EmailDeliveryError("Resend is not configured", transient=False)
         try:

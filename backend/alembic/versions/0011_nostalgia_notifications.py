@@ -43,8 +43,12 @@ def upgrade() -> None:
             "anniversary_email_enabled", sa.Boolean, server_default=sa.text("true"), nullable=False
         ),
         sa.Column("notification_hour", sa.Integer, server_default="9", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.CheckConstraint("notification_hour BETWEEN 0 AND 23", name="notification_hour_range"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name="pk_user_notification_preferences"),
@@ -59,13 +63,22 @@ def upgrade() -> None:
         sa.Column("memory_id", UUID, nullable=False),
         sa.Column("anniversary_year", sa.Integer, nullable=False),
         sa.Column("channel", sa.String(24), nullable=False),
-        sa.Column("payload", postgresql.JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False),
+        sa.Column(
+            "payload", postgresql.JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False
+        ),
         sa.Column("idempotency_key", sa.String(300), nullable=False),
         sa.Column("status", sa.String(16), server_default="PENDING", nullable=False),
         sa.Column("attempts", sa.Integer, server_default="0", nullable=False),
-        sa.Column("next_attempt_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "next_attempt_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.Column("processing_started_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("processed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_error", sa.String(2000), nullable=True),
         sa.CheckConstraint(

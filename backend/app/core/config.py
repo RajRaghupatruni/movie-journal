@@ -2,7 +2,14 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import SecretStr, ValidationError, field_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -14,6 +21,7 @@ class Settings(BaseSettings):
         extra="ignore",
         env_ignore_empty=True,
         hide_input_in_errors=True,
+        populate_by_name=True,
     )
 
     app_env: Literal["development", "test", "production"] = "development"
@@ -22,7 +30,10 @@ class Settings(BaseSettings):
     migration_database_url: SecretStr | None = None
     database_runtime_role: str = "tandem_app"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
-    frontend_url: str = "http://localhost:5173"
+    frontend_url: str = Field(
+        default="http://localhost:5173",
+        validation_alias=AliasChoices("APPLICATION_URL", "FRONTEND_URL"),
+    )
     google_client_id: str | None = None
     google_client_secret: SecretStr | None = None
     google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
@@ -44,7 +55,15 @@ class Settings(BaseSettings):
     media_max_dimension: int = 2400
     media_max_count: int = 10
     resend_api_key: SecretStr | None = None
-    resend_from_address: str | None = None
+    allow_non_production_emails: bool = False
+    resend_from_address: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RESEND_FROM_EMAIL", "RESEND_FROM_ADDRESS"),
+    )
+
+    @property
+    def application_url(self) -> str:
+        return self.frontend_url
 
     @field_validator("provider_timeout_seconds")
     @classmethod
@@ -60,9 +79,11 @@ class Settings(BaseSettings):
             raise ValueError("media limits must be positive")
         return value
 
-    @field_validator("database_url")
+    @field_validator("database_url", "migration_database_url")
     @classmethod
-    def validate_database_url(cls, value: SecretStr) -> SecretStr:
+    def validate_database_url(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return value
         try:
             url = make_url(value.get_secret_value())
             valid = (
@@ -71,7 +92,7 @@ class Settings(BaseSettings):
                 and url.database
                 and url.username
                 and url.password
-                and len(url.query) == 0
+                and set(url.query).issubset({"sslmode", "channel_binding"})
             )
             # Force port parsing here as well.
             _ = url.port
@@ -80,6 +101,52 @@ class Settings(BaseSettings):
         if not valid:
             raise ValueError("DATABASE_URL must be a PostgreSQL psycopg URL with credentials")
         return value
+
+    @model_validator(mode="after")
+    def validate_production_configuration(self) -> "Settings":
+        if self.app_env != "production":
+            return self
+
+        def configured(value) -> bool:
+            raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+            return raw is not None and bool(str(raw).strip())
+
+        required = {
+            "APPLICATION_URL/FRONTEND_URL": self.frontend_url,
+            "GOOGLE_CLIENT_ID": self.google_client_id,
+            "GOOGLE_CLIENT_SECRET": self.google_client_secret,
+            "GOOGLE_REDIRECT_URI": self.google_redirect_uri,
+            "TMDB_API_TOKEN": self.tmdb_api_token,
+            "GEOAPIFY_API_KEY": self.geoapify_api_key,
+            "S3_ENDPOINT_URL": self.s3_endpoint_url,
+            "S3_BUCKET": self.s3_bucket,
+            "S3_ACCESS_KEY_ID": self.s3_access_key_id,
+            "S3_SECRET_ACCESS_KEY": self.s3_secret_access_key,
+            "S3_REGION": self.s3_region,
+            "RESEND_API_KEY": self.resend_api_key,
+            "RESEND_FROM_EMAIL/RESEND_FROM_ADDRESS": self.resend_from_address,
+        }
+        missing = [name for name, value in required.items() if not configured(value)]
+        if missing:
+            raise ValueError("production configuration is missing: " + ", ".join(missing))
+
+        for name, value in (
+            ("APPLICATION_URL/FRONTEND_URL", self.frontend_url),
+            ("GOOGLE_REDIRECT_URI", self.google_redirect_uri),
+            ("S3_ENDPOINT_URL", self.s3_endpoint_url),
+        ):
+            parsed = urlsplit(str(value))
+            if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
+                raise ValueError(f"{name} must be an absolute HTTPS URL in production")
+            if parsed.query or parsed.fragment:
+                raise ValueError(f"{name} must not contain a query string or fragment")
+        app_url = urlsplit(self.frontend_url)
+        if app_url.path not in {"", "/"}:
+            raise ValueError("APPLICATION_URL/FRONTEND_URL must point to the application origin")
+        redirect = urlsplit(self.google_redirect_uri)
+        if redirect.path != "/auth/google/callback":
+            raise ValueError("GOOGLE_REDIRECT_URI must end in /auth/google/callback")
+        return self
 
     @field_validator("cors_origins")
     @classmethod

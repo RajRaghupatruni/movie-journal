@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 750" role="img" aria-labelledby="title desc">
+  <title id="title">Movie artwork placeholder</title>
+  <desc id="desc">A quiet Tandem-owned placeholder for unavailable movie artwork.</desc>
+  <rect width="500" height="750" fill="#ede1d7"/>
+  <circle cx="250" cy="290" r="116" fill="#ddc4b5"/>
+  <path d="M94 545c52-76 122-114 156-114s104 38 156 114v78H94z" fill="#b98f7c"/>
+  <path d="M152 258h196v22H152zM173 221h154v22H173z" fill="#f8f1eb" opacity=".8"/>
+  <text x="250" y="682" fill="#6f5145" font-family="Georgia,serif" font-size="25" text-anchor="middle">Tandem</text>
+</svg>

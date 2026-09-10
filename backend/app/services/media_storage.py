@@ -50,5 +50,13 @@ class S3ObjectStorage:
 
 
 def build_object_storage(settings: Settings) -> ObjectStorage | None:
-    configured = all((settings.s3_bucket, settings.s3_access_key_id, settings.s3_secret_access_key))
-    return S3ObjectStorage(settings) if configured else None
+    values = (
+        settings.s3_endpoint_url,
+        settings.s3_bucket,
+        settings.s3_access_key_id,
+        settings.s3_secret_access_key,
+        settings.s3_region,
+    )
+    if any(values) and not all(values):
+        raise ValueError("S3 endpoint, bucket, credentials, and region must be configured together")
+    return S3ObjectStorage(settings) if all(values) else None

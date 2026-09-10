@@ -3,6 +3,26 @@
 > Historical verification from before `tandem/product-cleanup`; legacy Firebase/Foursquare
 > observations below are retained as audit history only.
 
+## Production-readiness verification — 2026-09-10
+
+The current deployment-preparation result is recorded here; the historical notes below describe an earlier Firebase-era verification pass and are retained for audit context.
+
+| Area | Result |
+|---|---|
+| Frontend lint | `npm run lint` passed |
+| Frontend typecheck/build | `npm run build` passed; Vite emitted only the existing Tailwind plugin warning |
+| Frontend tests | 5 files, 17 tests passed |
+| Backend lint/format | Ruff check passed; 67 files already formatted |
+| Backend PostgreSQL/RLS suite | 51 tests passed in the Linux production image against the disposable PostgreSQL role-separated stack |
+| Alembic | `alembic check` reported no new operations; migrations reach `0011_nostalgia_notifications` |
+| Secret/dependency scans | Source secret scan: 0 findings; `npm audit --audit-level=high`: 0 vulnerabilities |
+| Production image | Docker multi-stage image build passed; non-root container smoke passed for `/healthz`, SPA fallback, hashed asset caching, API 404 behavior, CSP, and request IDs |
+| Render config | `render.yaml` parsed successfully; no database or Redis service is provisioned |
+
+Remaining verification is intentionally manual: real Neon/B2/Google/TMDb/Geoapify/Resend credentials, OAuth redirect behavior, real-user A/B/C smoke flows, and the scheduled email path. The documented P0 privacy gap is self-service account export/delete; memory/photo deletion and resurfacing/email controls are already implemented.
+
+---
+
 ## Memory-domain milestone
 
 The PostgreSQL-backed memory/media vertical slice is implemented through migration

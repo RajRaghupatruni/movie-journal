@@ -36,6 +36,7 @@ python -m app.workers.anniversary
 ```
 
 Production should schedule this command hourly (or more frequently if delivery-hour precision
-matters), with `MIGRATION_DATABASE_URL` set to the separately controlled worker/service
-connection and Resend secrets available only to that process. Tests inject a deterministic clock
+matters), with `DATABASE_URL` set to the dedicated non-bypass-RLS runtime role and Resend secrets
+available only to that process. `MIGRATION_DATABASE_URL` is for Alembic pre-deploy runs, never the
+worker. Tests inject a deterministic clock
 and fake adapter; they never call Google, Resend, TMDb, Geoapify, or S3.

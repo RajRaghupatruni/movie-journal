@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.integrations.providers import (
@@ -10,6 +12,7 @@ from app.schemas.integrations import MovieSearchResponse, MovieSearchResult, Pla
 from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
+logger = logging.getLogger(__name__)
 
 
 def _provider_error(exc: Exception) -> HTTPException:
@@ -34,6 +37,9 @@ def search_movies(
     try:
         return MovieSearchResponse(items=TmdbClient(request.app.state.settings).search(query))
     except (ProviderClientError, ProviderUnavailable) as exc:
+        logger.warning(
+            "provider_request_failed", extra={"provider": "tmdb", "error_class": type(exc).__name__}
+        )
         raise _provider_error(exc) from None
 
 
@@ -46,6 +52,9 @@ def get_movie(
     try:
         return TmdbClient(request.app.state.settings).get(tmdb_id)
     except (ProviderClientError, ProviderUnavailable) as exc:
+        logger.warning(
+            "provider_request_failed", extra={"provider": "tmdb", "error_class": type(exc).__name__}
+        )
         raise _provider_error(exc) from None
 
 
@@ -61,4 +70,8 @@ def search_places(
     try:
         return PlaceSearchResponse(items=GeoapifyClient(request.app.state.settings).search(query))
     except (ProviderClientError, ProviderUnavailable) as exc:
+        logger.warning(
+            "provider_request_failed",
+            extra={"provider": "geoapify", "error_class": type(exc).__name__},
+        )
         raise _provider_error(exc) from None

@@ -157,9 +157,12 @@ async def google_callback(
 
     db.flush()
     set_current_user_id(db, str(user.id))
-    if db.scalar(
-        select(UserNotificationPreference).where(UserNotificationPreference.user_id == user.id)
-    ) is None:
+    if (
+        db.scalar(
+            select(UserNotificationPreference).where(UserNotificationPreference.user_id == user.id)
+        )
+        is None
+    ):
         db.add(UserNotificationPreference(user_id=user.id))
 
     oauth_state.consumed_at = datetime.now(UTC)

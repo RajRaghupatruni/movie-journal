@@ -2,7 +2,8 @@
 
 Photos are uploaded to FastAPI, validated and normalized, then written to private S3-compatible
 object storage. Tandem stores only object metadata in PostgreSQL; it does not use the container
-filesystem or put binary data in database columns. The adapter works with Backblaze B2 and other
+filesystem or put binary data in database columns. Production uses a private Backblaze B2 bucket,
+a bucket-restricted application key, and its S3 endpoint. The adapter also works with other
 S3-compatible services. Set `S3_ENDPOINT_URL` for B2-compatible endpoints or MinIO, alongside
 `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and optional `S3_REGION`.
 
@@ -13,7 +14,8 @@ S3-compatible services. Set `S3_ENDPOINT_URL` for B2-compatible endpoints or Min
 - Raw uploads are limited to 10 MiB per file and 10 photos per memory.
 - Images are EXIF-auto-oriented, converted to RGB, resized so neither dimension exceeds 2,400
   pixels, and re-encoded as WebP at quality 85. Re-encoding strips unnecessary EXIF metadata.
-- Object keys are opaque UUID-based keys under the tandem/memory prefix. User filenames are kept
+- Object keys are opaque UUID-based keys under `media/`; Tandem and memory IDs are not encoded in
+  the object key. User filenames are kept
   only as sanitized display metadata and are never keys.
 
 ## Reads and deletion

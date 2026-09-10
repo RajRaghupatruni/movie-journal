@@ -6,7 +6,6 @@ Tandem is a private shared-memory and nostalgia web application for desktop use.
 flowchart LR
   UI[React / TypeScript · Vite] --> API[FastAPI · Pydantic]
   API --> SQL[SQLAlchemy 2 · PostgreSQL 16]
-  API -. later .-> Cache[Redis · bounded cache / rate limits]
   API --> Providers[TMDb · Geoapify]
   API --> Media[Private S3-compatible storage]
   Scheduler[cron / hosted job] --> Worker[bounded anniversary worker]
@@ -19,14 +18,14 @@ flowchart LR
 - One deployable FastAPI application. `api/` owns HTTP concerns, `schemas/` API validation, `services/` use cases and transaction boundaries, `models/` SQL mapping, `db/` connection/session ownership, `core/` configuration/logging, and `integrations/` future outbound clients. Empty modules are intentional; no speculative service layer or product models.
 - SQLAlchemy 2 synchronous sessions with psycopg 3. Synchronous routes run database calls in FastAPI's worker threads. Engine lifecycle is managed through FastAPI lifespan; bounded connection pool, pre-ping, connection/pool/statement timeouts, explicit commits and session rollback/close protect resources.
 - Pydantic Settings requires a credential-bearing `postgresql+psycopg` URL, validates environment and local origins, masks configuration values and produces a generic startup failure. Local Python commands read repository `.env.local`; container environment overrides it. Backend images do not copy local env files.
-- `GET /api/health` runs `SELECT 1`: 200 with `{"status":"ok","application":"ok","database":"ok"}`, or 503 with `{"status":"degraded","application":"ok","database":"unavailable"}`. No URL, exception, credentials or provider details. This is application/database readiness, not migration-state or Redis readiness.
+- `GET /healthz` is a cheap liveness check. `GET /api/health` and `/api/readyz` run `SELECT 1`: 200 with `{"status":"ok","application":"ok","database":"ok"}`, or 503 with a generic degraded response. No URL, exception, credentials or provider details.
 - Structured JSON logs contain time, severity, event name, correlation ID and request duration/status. Incoming request IDs must be UUIDs; otherwise generate one and return it in `X-Request-ID`. Request bodies, headers, query strings, SQL parameters and exception text are excluded from our request/database error logs.
-- Development CORS allows explicit local HTTP origins only, without credentialed requests. It is disabled in test/production. This is not the future auth configuration. Vite proxies `/api` to the backend; backend endpoints do not require frontend secrets.
+- Development CORS allows explicit local HTTP origins only and is disabled in test/production. Production state-changing requests require the exact same-origin Origin/Referer. Vite proxies `/api` locally; backend endpoints do not require frontend secrets.
 - Alembic owns schema evolution. `0001_foundation` is intentionally empty: only `alembic_version` exists after upgrade. No `create_all`, automatic startup migrations or data migration. Run migrations explicitly as a deployment/development step.
-- The first product slice uses one Tandem-scoped `memories` entity with strict category metadata, participant/tag joins, PostgreSQL full-text search, optimistic versions, append-only activity records, provider snapshots, and private processed media. PostgreSQL is authoritative; nostalgia anniversaries, Redis features, notifications, and realtime updates remain later milestones.
+- The first product slice uses one Tandem-scoped `memories` entity with strict category metadata, participant/tag joins, PostgreSQL full-text search, optimistic versions, append-only activity records, provider snapshots, and private processed media. PostgreSQL is authoritative; the anniversary outbox/worker is included, while Redis, notifications beyond that worker, and realtime updates remain out of scope.
 - On This Day is a backend service over the represented `local_date`. It converts an injected/current instant into each requesting user's IANA timezone, matches earlier memories by local month/day, and applies the explicit Feb 29 rule: Feb 29 memories surface on Feb 29 in leap years and Feb 28 otherwise. The frontend never calculates eligibility.
 - Anniversary email intents use a PostgreSQL transactional outbox. A bounded `python -m app.workers.anniversary` process generates deterministic records, revalidates privacy before sending through Resend, and applies three-attempt exponential backoff. A crash after provider acceptance and before the database update can still result in an occasional duplicate; the database idempotency key prevents duplicate queued intents, not provider-side exactly-once delivery.
-- Docker Compose runs frontend, backend, PostgreSQL 16 and Redis 7, with loopback-only published ports and named PostgreSQL/Redis volumes. Redis uses AOF and is independently health-checked. Backend readiness and product behavior do not depend on Redis. Hosted S3-compatible storage is configured externally; MinIO is optional for local development/tests.
+- Docker Compose runs a development frontend, backend, and PostgreSQL 16 with loopback-only published ports and a named PostgreSQL volume. Production uses the root multi-stage Dockerfile and no Compose/Redis dependency. Hosted S3-compatible storage is configured externally.
 - npm remains the frontend manager; Vite remains the build tool. New meaningful boundaries use TypeScript with strict checking; old JSX remains to avoid churn. DOMPurify is shared by every legacy rich-HTML sink and editor insertion. Sanitization is mandatory even for old database content.
 
 ## Later authorization and data ownership
@@ -48,7 +47,9 @@ Saved provider snapshots remain usable when a provider is unavailable.
 
 Private media uses S3-compatible storage. The backend authorizes uploads/downloads, enforces object ownership and size/type policy, stores metadata in PostgreSQL and issues short-lived signed URLs. No public bucket or permanent public object URLs.
 
-Redis may later support expiring provider-response caches and bounded rate limits when justified. Define TTLs, size limits, failure behavior and privacy rules for every use. It will not be the source of truth, an event bus, a speculative job platform or a dependency for this milestone's product behavior.
+Small in-process rate limits protect OAuth entry, invitations, provider searches, and media uploads
+on the single Render instance. They are deliberately not a distributed security boundary; a
+multi-instance deployment must move them to a shared or edge limiter.
 
 ## Notification operations
 

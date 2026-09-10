@@ -45,7 +45,13 @@ def _safe_filename(filename: str | None) -> str | None:
 
 
 def _response(media: MemoryMedia, storage: ObjectStorage | None) -> MemoryMediaResponse:
-    url = storage.create_read_url(media.object_key) if storage else None
+    url = None
+    if storage:
+        try:
+            url = storage.create_read_url(media.object_key)
+        except Exception:
+            # A signed-read outage should degrade a thumbnail, not take down Timeline/Today.
+            logger.warning("media_read_url_failed")
     return MemoryMediaResponse(
         id=media.id,
         memory_id=media.memory_id,
@@ -121,7 +127,7 @@ async def upload_media(
                 )
             except InvalidImage as exc:
                 raise HTTPException(status_code=415, detail=str(exc)) from None
-            object_key = f"tandems/{access.tandem.id}/memories/{memory_id}/{uuid4().hex}.webp"
+            object_key = f"media/{uuid4().hex}.webp"
             storage.put_object(object_key, processed, "image/webp")
             object_keys.append(object_key)
             media = MemoryMedia(
