@@ -4,6 +4,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ReactivationScreen, SettingsScreen, TandemManagement } from './App.jsx'
+import { getDocumentTitle } from './lib/documentTitle'
 import { tandemApi } from './lib/tandemApi'
 
 Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
@@ -30,6 +31,16 @@ afterEach(() => {
 })
 
 describe('account and Tandem management surfaces', () => {
+  it('uses privacy-safe route titles', () => {
+    expect(getDocumentTitle('/', 'authenticated')).toBe('Today — Tandem')
+    expect(getDocumentTitle('/timeline', 'authenticated')).toBe('Timeline — Tandem')
+    expect(getDocumentTitle('/memory/private-title', 'authenticated')).toBe('Memory — Tandem')
+    expect(getDocumentTitle('/settings', 'authenticated')).toBe('Settings — Tandem')
+    expect(getDocumentTitle('/tandem', 'authenticated')).toBe('Tandem — Settings')
+    expect(getDocumentTitle('/?invite=private-ref', 'unauthenticated')).toBe('Login')
+    expect(getDocumentTitle('/memory/private-title', 'authenticated')).not.toContain('private-title')
+  })
+
   it('requires explicit destructive confirmations and exposes export/privacy settings', async () => {
     const onDeactivate = vi.fn()
     const onDelete = vi.fn()
