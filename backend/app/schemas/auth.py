@@ -81,6 +81,8 @@ class InvitationCreated(InvitationSummary):
 
 
 class TandemPreferenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     tandem_id: UUID
     resurfacing_enabled: bool
     routine_notifications_enabled: bool

@@ -122,6 +122,10 @@ describe('account and Tandem management surfaces', () => {
     })
     await act(async () => (view.container.querySelector('.invite-form') as HTMLFormElement).dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
     expect(createInvitation).toHaveBeenCalledWith('tandem-1', 'person@example.test')
+    const copyLink = Array.from(view.container.querySelectorAll('button')).find((button) => button.textContent?.includes('Copy link')) as HTMLButtonElement
+    await act(async () => copyLink.click())
+    expect(view.container.textContent).toContain('Invite link copied.')
+    expect(copyLink.textContent).toContain('Copied')
 
     const makeOwner = Array.from(view.container.querySelectorAll('button')).find((button) => button.textContent?.includes('Make owner')) as HTMLButtonElement
     await act(async () => makeOwner.click())

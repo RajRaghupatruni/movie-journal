@@ -94,6 +94,7 @@ def get_tandem_preferences(
 ) -> TandemPreferenceResponse:
     preference = _tandem_preference(db, access.tandem.id, current_user.id)
     db.commit()
+    set_current_user_id(db, str(current_user.id))
     return TandemPreferenceResponse.model_validate(preference)
 
 
@@ -108,6 +109,7 @@ def update_tandem_preferences(
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(preference, key, value)
     db.commit()
+    set_current_user_id(db, str(current_user.id))
     db.refresh(preference)
     return TandemPreferenceResponse.model_validate(preference)
 

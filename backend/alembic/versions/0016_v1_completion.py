@@ -40,6 +40,11 @@ def upgrade() -> None:
     op.add_column("oauth_states", sa.Column("return_path", sa.String(512), nullable=True))
     op.execute(
         """
+        -- These are migration-owned backfills.  The legacy tables are FORCE RLS
+        -- protected and memory_participants deliberately had no UPDATE policy;
+        -- temporarily disable RLS so existing rows are actually preserved.
+        ALTER TABLE memories DISABLE ROW LEVEL SECURITY;
+        ALTER TABLE memory_participants DISABLE ROW LEVEL SECURITY;
         UPDATE memories
            SET end_date = NULLIF(metadata ->> 'end_date', '')::date
          WHERE category = 'trip' AND metadata ->> 'end_date' IS NOT NULL;
@@ -90,6 +95,14 @@ def upgrade() -> None:
           FROM memories
          WHERE created_by IS NOT NULL AND (rating IS NOT NULL OR notes IS NOT NULL)
         ON CONFLICT (memory_id, user_id) DO NOTHING;
+        """
+    )
+    op.execute(
+        """
+        ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE memories FORCE ROW LEVEL SECURITY;
+        ALTER TABLE memory_participants ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE memory_participants FORCE ROW LEVEL SECURITY;
         """
     )
     op.create_table(

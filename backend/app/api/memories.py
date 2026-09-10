@@ -800,6 +800,7 @@ def restore_memory(
     memory.deletion_expires_at = None
     memory.version += 1
     db.commit()
+    set_current_user_id(db, str(current_user.id))
     db.refresh(memory)
     return _responses(
         db, [memory], getattr(request.app.state, "object_storage", None), current_user.id
@@ -856,6 +857,7 @@ def save_my_reflection(
     reflection.note = payload.note
     reflection.reaction = payload.reaction
     db.commit()
+    set_current_user_id(db, str(current_user.id))
     db.refresh(reflection)
     return ReflectionResponse(
         id=reflection.id,

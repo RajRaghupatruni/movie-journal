@@ -235,3 +235,92 @@ def test_all_memory_categories_and_validation(memory_clients, category, metadata
             },
         )
         assert duplicate_tags.status_code == 422
+
+
+def test_v1_reflections_recovery_duplicates_rediscovery_and_preferences(memory_clients):
+    _, _, (user_a, user_b, _), (client_a, client_b, _) = memory_clients
+    with client_a as a, client_b as b:
+        tandem_id = _create_shared_tandem(a, b)
+        trip = a.post(
+            f"/api/tandems/{tandem_id}/memories",
+            json={
+                "category": "trip",
+                "title": "Coast weekend",
+                "local_date": "2024-09-10",
+                "end_date": "2024-09-12",
+                "timezone": "UTC",
+                "notes": "The long way home.",
+                "rating": 8,
+                "participant_ids": [str(user_b)],
+                "tags": ["coast"],
+                "metadata": {"destination": "The coast"},
+            },
+        )
+        assert trip.status_code == 201, trip.text
+        memory = trip.json()
+        memory_id = memory["id"]
+        assert memory["end_date"] == "2024-09-12"
+
+        duplicate = a.get(
+            f"/api/tandems/{tandem_id}/memories/duplicates",
+            params={
+                "category": "trip",
+                "local_date": "2024-09-10",
+                "title": "Coast weekend",
+            },
+        )
+        assert duplicate.status_code == 200
+        assert duplicate.json()[0]["id"] == memory_id
+
+        saved_by_b = b.put(
+            f"/api/tandems/{tandem_id}/memories/{memory_id}/reflections/me",
+            json={"rating": 9, "note": "Still makes me smile.", "reaction": "nostalgic"},
+        )
+        assert saved_by_b.status_code == 200, saved_by_b.text
+        saved_by_a = a.put(
+            f"/api/tandems/{tandem_id}/memories/{memory_id}/reflections/me",
+            json={"rating": 7, "note": "A keeper.", "reaction": "loved"},
+        )
+        assert saved_by_a.status_code == 200, saved_by_a.text
+        reflections = a.get(f"/api/tandems/{tandem_id}/memories/{memory_id}").json()["reflections"]
+        assert {item["user_id"] for item in reflections} == {str(user_a), str(user_b)}
+        assert (
+            next(item for item in reflections if item["user_id"] == str(user_b))["note"]
+            == "Still makes me smile."
+        )
+
+        preferences = b.patch(
+            f"/api/tandems/{tandem_id}/preferences",
+            json={"resurfacing_enabled": False, "routine_notifications_enabled": False},
+        )
+        assert preferences.status_code == 200, preferences.text
+        assert preferences.json()["resurfacing_enabled"] is False
+        assert (
+            b.get(
+                "/api/me/rediscovery/shuffle", params={"tandem_id": tandem_id, "seed": "acceptance"}
+            ).json()["memory"]
+            is None
+        )
+        assert (
+            a.get(
+                "/api/me/rediscovery/shuffle", params={"tandem_id": tandem_id, "seed": "acceptance"}
+            ).json()["memory"]["id"]
+            == memory_id
+        )
+        assert (
+            a.get(
+                "/api/me/rediscovery/year-review", params={"tandem_id": tandem_id, "year": 2024}
+            ).json()["memory_count"]
+            == 1
+        )
+
+        assert a.delete(f"/api/tandems/{tandem_id}/memories/{memory_id}").status_code == 204
+        deleted = a.get(f"/api/tandems/{tandem_id}/memories/deleted")
+        assert deleted.status_code == 200
+        assert deleted.json()["items"][0]["id"] == memory_id
+        assert a.post(f"/api/tandems/{tandem_id}/memories/{memory_id}/restore").status_code == 200
+        assert a.delete(f"/api/tandems/{tandem_id}/memories/{memory_id}").status_code == 204
+        assert (
+            a.delete(f"/api/tandems/{tandem_id}/memories/{memory_id}/permanent").status_code == 204
+        )
+        assert a.get(f"/api/tandems/{tandem_id}/memories/deleted").json()["items"] == []
