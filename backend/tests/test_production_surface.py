@@ -87,12 +87,23 @@ def test_security_headers_and_same_origin_protection():
     def write():
         return {"ok": True}
 
+    @app.get("/api/private")
+    def private():
+        return {"secret": True}
+
     app.add_middleware(SameOriginMiddleware, settings=settings)
     app.add_middleware(SecurityHeadersMiddleware, settings=settings)
     with TestClient(app) as client:
         blocked = client.post("/write", headers={"Origin": "https://evil.example"})
+        missing_origin = client.post("/write")
+        malformed_origin = client.post("/write", headers={"Origin": "https://evil.example:bad"})
         allowed = client.post("/write", headers={"Origin": "https://tandem.example.com"})
+        private = client.get("/api/private")
     assert blocked.status_code == 403
+    assert missing_origin.status_code == 403
+    assert malformed_origin.status_code == 403
     assert allowed.status_code == 200
     assert allowed.headers["x-content-type-options"] == "nosniff"
     assert allowed.headers["strict-transport-security"].startswith("max-age=31536000")
+    assert private.headers["cache-control"] == "no-store"
+    assert "https://*.backblazeb2.com" not in private.headers["content-security-policy"]

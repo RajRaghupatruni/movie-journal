@@ -110,7 +110,19 @@ def test_invites_members_and_isolates_tandem_rows(users_and_clients):
         reference = invitation.json()["reference"]
         assert "token_hash" not in invitation.text
         assert b.get(f"/api/invitations/{reference}").status_code == 200
-        assert c.post(f"/api/invitations/{reference}/accept").status_code == 403
+        # A wrong recipient must not be able to confirm that a reference exists.
+        assert c.post(f"/api/invitations/{reference}/accept").status_code == 404
+        with Session(runtime_engine) as db, db.begin():
+            set_current_user_id(db, str(user_c))
+            assert (
+                db.scalars(
+                    select(Invitation).where(
+                        Invitation.tandem_id == UUID(tandem_id),
+                        Invitation.invited_email == "b@example.test",
+                    )
+                ).all()
+                == []
+            )
         assert b.post(f"/api/invitations/{reference}/accept").status_code == 200
         assert b.get(f"/api/tandems/{tandem_id}").status_code == 200
         assert b.post(f"/api/invitations/{reference}/accept").status_code == 409

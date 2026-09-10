@@ -17,6 +17,12 @@ class UserResponse(BaseModel):
     is_active: bool = True
 
 
+class StrictRequestModel(BaseModel):
+    """Reject client-controlled properties outside the explicit request contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class NotificationPreferenceResponse(BaseModel):
     timezone: str
     anniversary_notifications_enabled: bool
@@ -24,7 +30,7 @@ class NotificationPreferenceResponse(BaseModel):
     notification_hour: int
 
 
-class NotificationPreferencePatch(BaseModel):
+class NotificationPreferencePatch(StrictRequestModel):
     timezone: str | None = None
     anniversary_notifications_enabled: bool | None = None
     anniversary_email_enabled: bool | None = None
@@ -60,7 +66,7 @@ class InvitationSummary(BaseModel):
     created_at: datetime | None = None
 
 
-class InvitationCreate(BaseModel):
+class InvitationCreate(StrictRequestModel):
     invited_email: str
     expires_in_days: int = 7
 
@@ -73,14 +79,11 @@ class InvitationCreated(InvitationSummary):
 class NotificationResponse(BaseModel):
     id: UUID
     type: str
-    actor_user_id: UUID | None
     actor_name: str | None = None
     tandem_id: UUID | None
     tandem_name: str | None = None
     memory_id: UUID | None
-    invitation_id: UUID | None
     payload: dict
-    dedupe_key: str
     created_at: datetime
     read_at: datetime | None
     archived_at: datetime | None
@@ -91,16 +94,16 @@ class NotificationListResponse(BaseModel):
     unread_count: int
 
 
-class AccountAction(BaseModel):
+class AccountAction(StrictRequestModel):
     confirmation: str
 
 
-class TandemCreate(BaseModel):
+class TandemCreate(StrictRequestModel):
     name: str
     timezone: str = "UTC"
 
 
-class TandemUpdate(BaseModel):
+class TandemUpdate(StrictRequestModel):
     name: str | None = None
     timezone: str | None = None
 
@@ -123,8 +126,6 @@ class TandemSummaryResponse(TandemResponse):
 
 class MemberResponse(BaseModel):
     user_id: UUID
-    email: str
     display_name: str
-    avatar_url: str | None
     role: str
     joined_at: datetime

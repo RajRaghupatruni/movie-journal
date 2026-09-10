@@ -170,7 +170,6 @@ def export_account(
                 MemoryParticipant.memory_id,
                 User.id,
                 User.display_name,
-                User.email,
             )
             .join(User, User.id == MemoryParticipant.user_id)
             .join(Memory, Memory.id == MemoryParticipant.memory_id)
@@ -191,12 +190,11 @@ def export_account(
         else []
     )
     participants_by_memory: dict[UUID, list[dict]] = {}
-    for memory_id, user_id, display_name, email in participant_rows:
+    for memory_id, user_id, display_name in participant_rows:
         participants_by_memory.setdefault(memory_id, []).append(
             {
                 "user_id": str(user_id),
                 "display_name": display_name,
-                "email": email,
             }
         )
     tags_by_memory: dict[UUID, list[str]] = {}

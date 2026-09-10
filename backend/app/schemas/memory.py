@@ -105,6 +105,8 @@ def validate_timezone(value: str) -> str:
 
 
 class MemoryWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     category: MemoryCategory
     title: str = Field(min_length=1, max_length=180)
     local_date: date
@@ -162,6 +164,8 @@ class MemoryCreate(MemoryWrite):
 
 
 class MemoryPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     expected_version: int = Field(ge=1)
     category: MemoryCategory | None = None
     title: str | None = Field(default=None, min_length=1, max_length=180)
@@ -214,8 +218,6 @@ class MemoryPatch(BaseModel):
 class MemberSummary(BaseModel):
     user_id: UUID
     display_name: str
-    email: str | None
-    avatar_url: str | None
 
 
 class MemoryMediaResponse(BaseModel):
@@ -225,8 +227,6 @@ class MemoryMediaResponse(BaseModel):
     byte_size: int
     width: int
     height: int
-    original_filename: str | None
-    created_by: UUID | None
     created_at: datetime
     display_order: int
     url: str | None = None

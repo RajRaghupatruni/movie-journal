@@ -36,7 +36,8 @@ could loop behind the proxy.
 Responses receive a CSP, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`,
 `X-Frame-Options: DENY`, `frame-ancestors 'none'`, a restrictive Permissions-Policy, and HSTS in
 production. CSP permits only same-origin scripts/connections plus the specific Google avatar,
-TMDb image, and B2 image hosts needed by the UI.
+TMDb image and the configured object-storage host needed by the UI; it does not use a wildcard
+B2 host. Authenticated API and auth responses are marked `no-store`.
 
 ## Tandem tenant boundary
 
@@ -69,7 +70,9 @@ membership. Acceptance always compares the authenticated, normalized email with 
 email, so possession of a reference cannot authorize arbitrary self-membership.
 
 Invitation responses never expose `token_hash`. The raw reference is returned only when an
-owner creates the invitation, for delivery by a later email service.
+owner creates the invitation, for delivery by a later email service. Runtime row visibility is
+limited to the inviting Tandem's members and the verified email address on the invitation, so a
+wrong recipient or guessed reference receives the same non-enumerating 404 boundary.
 
 ## PostgreSQL RLS and runtime identity
 
@@ -108,8 +111,10 @@ edit, deletion, or opt-out boundary.
 This design addresses guessed tandem IDs, arbitrary self-membership, invitation replay,
 wrong-recipient acceptance, stale sessions, OAuth state replay, token disclosure in the
 database, connection-pool identity leakage, and accidental omission of an application-level
-tenant filter. It does not replace TLS termination, Google Console account policy, secret
-rotation, rate limiting, email delivery controls, or operational database backups. CSRF risk is
+tenant filter. The in-process rate limiter is bounded and intentionally single-instance;
+deployment behind multiple web instances requires a shared limiter or edge control. It does not
+replace TLS termination, Google Console account policy, secret rotation, email delivery controls,
+or operational database backups. CSRF risk is
 reduced by HttpOnly SameSite cookies and same-origin deployment; state-changing browser clients
 should also send an allowed Origin and a later frontend milestone should add a dedicated CSRF
 token/header contract before cross-site embedding is considered.

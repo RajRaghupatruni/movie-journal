@@ -24,4 +24,6 @@ COPY --from=frontend-build /src/dist ./dist
 RUN chown -R tandem:tandem /app
 USER tandem
 EXPOSE 8000
-CMD ["sh", "-c", "exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --no-access-log"]
+# Trust forwarded headers only from private infrastructure ranges. A public wildcard would
+# let a direct caller spoof X-Forwarded-For and bypass the in-process abuse limits.
+CMD ["sh", "-c", "exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16' --no-access-log"]

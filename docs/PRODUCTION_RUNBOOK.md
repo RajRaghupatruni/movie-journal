@@ -175,9 +175,12 @@ the pre-deploy command and is not used by the web runtime. The service’s runti
    redirect enabled. Do not add an application HTTP→HTTPS redirect that could loop behind TLS
    termination.
 5. Confirm the service uses the Dockerfile at the repository root, has health check path
-   `/api/health`, and starts with the image command. The Uvicorn process trusts forwarded
-   protocol/client headers from Render so OAuth and request context remain HTTPS-aware behind
-   TLS termination. No Vite server is involved in production.
+    `/api/health`, and starts with the image command. The Uvicorn process trusts forwarded
+    protocol/client headers only from private infrastructure CIDRs (`127.0.0.1`, `10/8`,
+    `172.16/12`, and `192.168/16`), never from arbitrary public callers. Confirm the Render
+    proxy reaches the service from one of those ranges before deployment; if Render documents a
+    different private proxy range, set the image's forwarded-header allowlist to that bounded
+    range. No Vite server is involved in production.
 
 ## 8. Render Cron Job
 
@@ -214,7 +217,7 @@ alembic current
 alembic check
 ```
 
-The expected head is `0011_nostalgia_notifications`. Never run migrations from FastAPI lifespan,
+The expected head is `0013_security_hardening`. Never run migrations from FastAPI lifespan,
 and never point `MIGRATION_DATABASE_URL` at the runtime role. Schema downgrades are not a routine
 rollback: future migrations may be destructive and application code is not necessarily backward
 compatible. For a bad application image, redeploy the previous image/commit without downgrading.

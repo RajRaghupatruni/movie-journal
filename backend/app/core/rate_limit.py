@@ -54,10 +54,14 @@ class InProcessRateLimitMiddleware:
             if len(events) >= limit:
                 return False
             events.append(now)
-            # Keep the map bounded when the service sees many one-off clients.
+            # Keep the map bounded even when an attacker continually rotates IPs and
+            # cookies. Do not let the limiter become its own memory-exhaustion vector.
             if len(self._events) > 4096:
-                stale = [name for name, values in self._events.items() if not values]
-                for name in stale[:1024]:
+                oldest = sorted(
+                    self._events.items(),
+                    key=lambda item: item[1][-1] if item[1] else float("-inf"),
+                )
+                for name, _ in oldest[:1024]:
                     self._events.pop(name, None)
             return True
 
