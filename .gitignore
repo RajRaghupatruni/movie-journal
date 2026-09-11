@@ -47,3 +47,8 @@ dist-ssr
 htmlcov/
 coverage/
 .verification/
+
+# Playwright regression credentials and artifacts
+playwright/.auth/
+test-results/live/
+playwright-report/
