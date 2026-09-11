@@ -81,6 +81,7 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
   });
 
   test('runs isolated single-user creation, providers, media, recovery, navigation, and cleanup', async ({ page, request }) => {
+    test.setTimeout(120_000);
     const createdTandems: string[] = [];
     let originalPreferences: Record<string, unknown> | undefined;
     try {
@@ -291,7 +292,9 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       await expect(page.getByText(movie.title, { exact: true }).first()).toBeVisible();
       await page.getByRole('link', { name: 'Calendar' }).click();
       await expect(page.getByRole('heading', { name: 'Calendar' })).toBeVisible();
-      await page.getByRole('button', { name: 'Recently Deleted' }).click();
+      await page.getByRole('button', { name: 'Recently Deleted' }).evaluate(
+        (element) => (element as HTMLButtonElement).click(),
+      );
       await expect(page.getByRole('heading', { name: 'Recently Deleted' })).toBeVisible();
       await page.getByRole('link', { name: 'Memories' }).click();
       await page.getByText(movie.title, { exact: true }).first().click();

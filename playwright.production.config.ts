@@ -18,6 +18,7 @@ const runId = process.env.TANDEM_E2E_RUN_ID || new Date().toISOString().replace(
 export default defineConfig({
   testDir: './tests/e2e/production',
   fullyParallel: false,
+  workers: 1,
   forbidOnly: true,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',

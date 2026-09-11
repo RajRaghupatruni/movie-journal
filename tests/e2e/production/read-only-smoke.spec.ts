@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { assertProductionOptIn } from './safety';
 
+// Public-boundary tests must not inherit the authenticated production state
+// used by the write journey.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('@smoke @read-only @production-safe live V1 smoke', () => {
   test.beforeEach(({ baseURL }) => assertProductionOptIn(baseURL));
 
