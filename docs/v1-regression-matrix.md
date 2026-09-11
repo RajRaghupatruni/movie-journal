@@ -4,7 +4,8 @@ This inventory is derived from the V1 implementation at the start of the validat
 not from the product brief alone. The application is feature frozen. Coverage labels are:
 
 - **LIVE-AUTOMATED**: executed against `https://tandem-web-xnih.onrender.com`; write coverage uses one
-  genuine OAuth identity and a namespaced disposable resource set.
+  genuine OAuth identity captured through the normal Google flow and a namespaced disposable resource
+  set. Capturing that state is manual; replaying it in the regression suite is automated.
 - **LOCAL-INTEGRATION**: executed against the PG18 test stack or a provider/storage mock. This is
   the authoritative layer for multi-user authorization when only one live identity is available.
 - **UNIT/COMPONENT**: deterministic frontend/backend logic coverage.
@@ -221,24 +222,54 @@ suite and is not represented as live OAuth evidence.
 
 | ID | Production-only case | Exact unblock requirement | Coverage |
 |---|---|---|---|
-| LIVE-01 | authenticated one-account read/write journey | one genuine OAuth storage state, explicit write opt-in, unique `[E2E]` namespace | MANUAL |
+| LIVE-01 | authenticated one-account read/write journey | one genuine OAuth storage state, explicit write opt-in, unique `[E2E]` namespace | LIVE-AUTOMATED |
 | LIVE-02 | A/B/C isolation and membership lifecycle | PG18 tests `test_invites_members_and_isolates_tandem_rows`, `test_tandem_rls_create_listing_and_direct_sql_boundaries`, and `test_membership_roles_leave_removal_and_last_owner_race` | LOCAL-INTEGRATION |
-| LIVE-03 | live TMDb/Geoapify/B2 writes and private media | one-account storage state, live provider configuration, disposable B2 namespace, cleanup access | MANUAL |
+| LIVE-03 | live TMDb/Geoapify/B2 writes and private media | one-account storage state, live provider configuration, disposable B2 namespace, cleanup access | LIVE-AUTOMATED |
 | LIVE-04 | irreversible account deletion and second-human OAuth flows | never use the available account for deletion; second human identity is required | MANUAL |
 | LIVE-05 | live anniversary cron/manual trigger | Render job operator access and a disposable anniversary fixture | MANUAL |
 | LIVE-06 | media cleanup failure/retry | PG18/storage mock coverage; production failure injection is unsafe | LOCAL-INTEGRATION |
 
+### Final live evidence and defect disposition
+
+The final clean run used `https://tandem-web-xnih.onrender.com` with the production opt-in,
+write opt-in, one saved real Google-authenticated storage state, and a unique `[E2E]` namespace:
+
+```text
+npx playwright test tests/e2e/production --config=playwright.production.config.ts
+4 passed, 1 worker
+```
+
+The anonymous smoke genuinely had empty browser storage and verified the Login shell and protected
+boundaries. The authenticated suite used the saved state, completed the one-account provider/media
+journey, and cleaned every namespaced resource. No test-login endpoint, fake user, or auth bypass was
+used.
+
+The only product defect found in the live pass was Geoapify response normalization: production's
+`format=json` response uses `results[]`, while the parser expected `features[]`. This was fixed in
+`ae97f68a99c96fa26092cecb087ce5142347039`; malformed provider schemas now fail as provider errors
+instead of silently becoming empty results, and the deployed fix passed the subsequent live run.
+
+The remaining findings were test-harness defects only: raw APIRequestContext writes lacked the
+browser origin required by `SameOriginMiddleware`; unsigned private B2 objects correctly returned
+401; the Year Review assertion ignored the resurfacing preference; and the combined run needed an
+explicit empty anonymous state, a bounded 120-second write timeout, and one production worker.
+Product security and backend behavior were unchanged.
+
 ## Coverage limitations and safe execution policy
 
-The production run has a safe unauthenticated/readiness suite and a separate one-account write
-suite. The write suite is not run by default and requires a locally stored storage state captured
-through the normal Google flow. Account deletion and second-human OAuth remain MANUAL by design.
-Multi-user authorization is LOCAL-INTEGRATION under the exact PG18 production-shaped roles; it is
-not claimed as live OAuth evidence.
+The final production run used the safe unauthenticated/readiness suite and the separate one-account
+write suite together: **4/4 passed with one worker**. The read-only file explicitly overrides the
+global storage state with empty cookies/origins, while the write file uses the locally stored state
+captured through the normal Google flow. All generated `[E2E]` resources were cleaned up. No auth
+bypass or fake production user was used.
+
+Account deletion, second-human OAuth, and other multi-human invitation/account-lifecycle flows
+remain MANUAL by design. Multi-user authorization is LOCAL-INTEGRATION under the exact PG18
+production-shaped roles; it is not claimed as live OAuth evidence.
 
 No production test accepts arbitrary resource IDs. Any future write suite must require the exact
 production hostname, an explicit opt-in, a unique `[E2E]` namespace, run-local ID tracking, and a
 second opt-in for irreversible account or resource deletion.
 
-Revised classification totals remain 136: 6 LIVE-AUTOMATED, 104 LOCAL-INTEGRATION,
-11 UNIT/COMPONENT, 15 MANUAL, and 0 BLOCKED.
+Final classification totals remain 136: 8 LIVE-AUTOMATED, 104 LOCAL-INTEGRATION,
+11 UNIT/COMPONENT, 13 MANUAL, and 0 BLOCKED.

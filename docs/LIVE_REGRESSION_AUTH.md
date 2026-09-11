@@ -39,6 +39,18 @@ recovery, scope navigation, confirmation modals, and cleanup. It does not delete
 account. If a provider or storage operation fails, retain the Playwright failure artifacts before
 reviewing or cleaning up the namespaced resources.
 
+To run the complete production regression directory, keep the same safety variables and use:
+
+```powershell
+npx playwright test tests/e2e/production --config=playwright.production.config.ts
+```
+
+The production configuration runs with one worker to prevent shared-account state interference.
+The final V1 run completed 4/4 tests successfully. The read-only smoke file explicitly overrides
+the global authenticated state with empty cookies/origins, so its Login and anonymous-boundary
+assertions are genuinely unauthenticated. The write file alone consumes the saved Google-authenticated
+state.
+
 State-changing calls deliberately run through the authenticated `page` context with
 `fetch(..., credentials: 'same-origin')`. Tandem production same-origin middleware requires a
 browser `Origin` or `Referer`; raw APIRequestContext is reserved for read-only calls in this suite.
@@ -59,3 +71,6 @@ $env:TANDEM_LIVE_PRODUCTION = 'true'
 $env:TANDEM_E2E_BASE_URL = 'https://tandem-web-xnih.onrender.com'
 npx playwright test --config=playwright.production.config.ts --grep '@read-only'
 ```
+
+The read-only tests always use empty storage, even when `TANDEM_STORAGE_STATE` is set for the
+production project. No storage-state, cookie, token, or provider credential file is committed.
