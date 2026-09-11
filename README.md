@@ -10,6 +10,176 @@ Read the [repository audit](docs/REPOSITORY_AUDIT.md), [target architecture](doc
 secrets and old deployed artifacts require separate incident cleanup. Legacy providers have no
 active runtime role; Geoapify is the active place provider.
 
+## What Tandem is
+
+Tandem is a private, invite-only shared-memory application for small groups. It gives a group one
+place to keep the moments that are easy to lose: movies, places, trips, activities, photos, notes,
+ratings, reactions, and personal reflections. A Tandem is deliberately small, with a maximum of
+five accepted members in V1, so the product can prioritize trust, context, and quiet rediscovery
+over public social features.
+
+V1 is feature frozen. This repository contains the working React application, the FastAPI service,
+the PostgreSQL schema and RLS policies, the provider adapters, the private-media path, the bounded
+anniversary worker, and the regression evidence for the deployed V1.
+
+## V1 capabilities
+
+- Create and manage multiple private Tandems with owner/member roles, invitations, promotion and
+  demotion, member removal, leaving, and final-owner protection.
+- Add memories as movies, places, trips, activities, or custom moments, with dates, trip ranges,
+  participants, tags, ratings, notes, reflections, reactions, provider snapshots, and private
+  photos.
+- Browse a global Today and Calendar view, or focus on one Tandem through Timeline and Gallery
+  views with search, category, year, and sort controls.
+- Recover soft-deleted memories through Recently Deleted, then permanently purge eligible records
+  with an explicit confirmation.
+- Rediscover older memories through On This Day, deterministic Shuffle, Year Review, and Throwback
+  Collections. Resurfacing and routine-notification preferences are scoped to each Tandem/user
+  relationship.
+- Receive in-app notifications for invitations, membership changes, ownership changes, and shared
+  activity. Anniversary delivery is represented by a transactional outbox; outbound email remains
+  disabled for V1.
+- Search TMDb movies and Geoapify places through the backend, then store normalized snapshots so
+  saved memories remain readable when a provider is unavailable.
+- Upload private media through an S3-compatible interface such as Backblaze B2. The API stores
+  metadata and issues short-lived signed URLs; raw object paths remain private.
+
+## System design
+
+```mermaid
+flowchart LR
+  Browser[React 19 / TypeScript boundaries / Vite]
+    -->|same-origin JSON + session cookie| API[FastAPI application]
+  API --> Auth[Google OAuth + opaque server sessions]
+  API --> Domain[API routes + Pydantic schemas + services]
+  Domain --> ORM[SQLAlchemy 2 + transaction boundaries]
+  ORM --> DB[(PostgreSQL 18)]
+  DB --> RLS[FORCE RLS + authorization helpers]
+  API --> Providers[TMDb / Geoapify adapters]
+  API --> Media[S3-compatible private storage]
+  Scheduler[Hosted cron] --> Worker[Bounded anniversary worker]
+  Worker --> DB
+  Worker -. EMAIL_DELIVERY_ENABLED=false in V1 .-> Resend[Resend later]
+  Compose[Docker Compose] --> API
+  Compose --> DB
+  Compose --> Redis[(Redis, reserved for later bounded uses)]
+```
+
+The browser is a presentation client. It calls purpose-specific FastAPI endpoints and never talks
+directly to PostgreSQL, TMDb, Geoapify, or object storage credentials. The backend authenticates
+the request, resolves the current user, sets a transaction-local PostgreSQL user context, applies
+service-level authorization, and lets database RLS provide a second tenant boundary. PostgreSQL
+is the source of truth for identity, membership, invitations, memories, notifications, and media
+metadata.
+
+The application is intentionally one deployable FastAPI service rather than a collection of
+microservices. HTTP concerns live under `backend/app/api`, validation under `schemas`, domain
+operations under `services`, persistence under `models` and `db`, and provider clients under
+`integrations`. This keeps transaction ownership visible and makes a small private product easier
+to operate. The anniversary worker is a bounded process over PostgreSQL; it does not require a
+queue, Celery, or a separate worker service.
+
+## Engineering decisions
+
+### PostgreSQL is authoritative
+
+Firebase was the legacy application's persistence layer. Tandem V1 does not add Firebase or a
+dual-write bridge. PostgreSQL 18 owns the relational model, constraints, membership boundaries,
+notifications, outbox state, soft deletion, and provider snapshots. Alembic is the only schema
+change mechanism, and migrations run explicitly during deployment or development.
+
+### Authorization is enforced in layers
+
+FastAPI dependencies reject unauthenticated, non-member, and non-owner operations early. PostgreSQL
+then enforces tenant isolation with `FORCE ROW LEVEL SECURITY`, including for table owners. The
+runtime role `tandem_app` is `NOSUPERUSER` and `NOBYPASSRLS`. Narrow `SECURITY DEFINER` helpers are
+owned by a separate `NOLOGIN BYPASSRLS` role, use a fixed safe `search_path`, expose only the
+minimum membership fact, and grant `EXECUTE` only to the runtime role. This structure avoids the
+recursive policy evaluation that caused the original production Tandem-creation failure.
+
+### Sessions are server-side and same-origin
+
+Google OAuth establishes identity, but Google tokens are not stored as application credentials.
+The backend stores only a hash of a random opaque session token and sends the raw token in a
+bounded `HttpOnly`, `Secure`, `SameSite=Lax` cookie. Unsafe browser requests must carry the expected
+same-origin `Origin` or `Referer`. The production regression suite uses the same browser request
+contract; it does not add a login endpoint or bypass.
+
+### Transactions are explicit and short
+
+Create Tandem plus owner membership is one transaction. Invitation acceptance, final-owner checks,
+member capacity, memory mutations, notification creation, and outbox changes use explicit
+transaction boundaries and row locks where needed. Optimistic versions protect shared memory edits.
+The current-user RLS setting is transaction-local so a pooled connection cannot retain one user's
+identity for the next request.
+
+### Providers are adapters, not sources of truth
+
+TMDb and Geoapify credentials stay in backend runtime configuration. Adapters validate and
+normalize bounded responses, apply timeouts, and return controlled errors. Selecting a provider
+result copies a snapshot into PostgreSQL; Timeline and Memory Detail do not depend on a later live
+provider request. This also made the Geoapify `results[]` response-shape defect observable and
+fixable rather than silently storing empty search results.
+
+### Private media uses capabilities with an expiry
+
+Media objects are private. The API validates uploads, stores metadata in PostgreSQL, and returns
+short-lived signed URLs. Tests prove both sides of the contract: a complete signed URL can read the
+object, while an unsigned object path is denied. Media cleanup is part of Tandem/memory deletion;
+failures are recorded for operator retry.
+
+### Preserve working UI while adding typed boundaries
+
+Vite and npm remain in place. Existing JSX screens were preserved to avoid a cosmetic rewrite;
+new API contracts and meaningful boundaries use strict TypeScript where practical. The target is
+desktop-first. No PWA, mobile application, UI redesign, or broad JSX conversion was needed for V1.
+
+## Engineering concepts used
+
+- **Tenant isolation:** every private resource is scoped through memberships and Tandem IDs, with
+  both API authorization and PostgreSQL RLS.
+- **Least privilege:** separate migration, runtime, and RLS-helper roles; no runtime
+  `BYPASSRLS`; provider secrets never enter frontend bundles.
+- **Defense in depth:** same-origin checks, HttpOnly sessions, API dependencies, database policies,
+  input schemas, upload validation, and safe error responses protect different failure layers.
+- **Transactional outbox:** anniversary work records durable intent in PostgreSQL before a later
+  worker considers delivery, with deduplication and retry state.
+- **Optimistic concurrency:** memory updates carry an expected version so stale edits fail instead
+  of silently overwriting a collaborator's change.
+- **Soft deletion and recovery:** normal deletion removes a memory from active reads while retaining
+  a bounded recovery path and an explicit permanent-delete operation.
+- **Snapshotting:** external movie/place data is copied into the memory record to preserve history.
+- **Structured observability:** request IDs, JSON logs, bounded error categories, health/readiness
+  endpoints, and safe diagnostics make production failures actionable without logging secrets or
+  user content.
+- **Test-layer separation:** deterministic UI/backend tests run locally, PG18 tests prove RLS and
+  multi-user boundaries, and the live suite uses real OAuth state only for safe namespaced flows.
+
+## Future work
+
+The following work is intentionally outside the frozen V1 product surface:
+
+- Add a Tandem-scoped PostgreSQL watchlist with TMDb snapshots, authorized removal, and conversion
+  into a movie memory. It must not revive the retired Firebase watchlist as a second source of truth.
+- Complete an owner-approved legacy-data import plan. Existing Firebase records have unresolved
+  ownership and must not be guessed into a Tandem; imports need dry runs, mapping, checksums,
+  rollback, and explicit destination ownership.
+- Enable Resend only after sender-domain setup, privacy review, and production delivery operations
+  are ready. V1 keeps `EMAIL_DELIVERY_ENABLED=false`.
+- Add shared rate limiting for multi-instance deployment. Current in-process limits are bounded but
+  intentionally not a distributed security boundary.
+- Add the next collaboration surfaces only when their data and notification semantics are clear:
+  realtime updates, richer invitation delivery, and additional media operations.
+- Continue incremental TypeScript migration and remove legacy Firebase code only after equivalent
+  PostgreSQL-backed functionality and data parity are proven.
+- Expand production validation with disposable second Google identities for wrong-recipient invites,
+  cross-account denial, account deactivation, and account deletion. These remain manual today to
+  avoid destructive testing against the primary identity.
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/TARGET_ARCHITECTURE.md`](docs/TARGET_ARCHITECTURE.md),
+and [`docs/v1-live-regression-report.md`](docs/v1-live-regression-report.md) for the detailed
+follow-up list, architecture boundaries, and final validation evidence.
+
 ## Full development stack
 
 Requires Docker Desktop with Linux containers and Python 3.12+ for the setup helper:
