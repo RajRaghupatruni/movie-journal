@@ -205,6 +205,33 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       }
       await browserJson(page, 'DELETE', `/api/tandems/${tandem.id}/memories/${custom.id}/media/${media[0].id}`, 204);
 
+      // Rediscovery is preference-scoped. Verify the normal eligible-memory
+      // contract before disabling resurfacing for this user's Tandem.
+      const createdMemoryIds = memories.map((item) => item.id);
+      const enabledShuffle = await json(
+        await request.get(`/api/me/rediscovery/shuffle?tandem_id=${tandem.id}&seed=e2e`),
+        200,
+      );
+      expect(enabledShuffle.memory).toBeTruthy();
+      expect(createdMemoryIds).toContain(enabledShuffle.memory.id);
+
+      const enabledYearReview = await json(
+        await request.get(`/api/me/rediscovery/year-review?year=2024&tandem_id=${tandem.id}`),
+        200,
+      );
+      expect(enabledYearReview.memory_count).toBeGreaterThan(0);
+      expect(enabledYearReview.highlights.length).toBeGreaterThan(0);
+
+      const enabledCollections = await json(
+        await request.get(`/api/me/rediscovery/collections?tandem_id=${tandem.id}`),
+        200,
+      );
+      expect(Array.isArray(enabledCollections.items)).toBe(true);
+      const yearCollection = enabledCollections.items.find(
+        (item: { key: string; memory_ids: string[] }) => item.key === 'year-2024',
+      );
+      expect(yearCollection?.memory_ids ?? []).toEqual(expect.arrayContaining(createdMemoryIds));
+
       const tandemPreference = await browserJson(page, 'PATCH', `/api/tandems/${tandem.id}/preferences`, 200, {
         resurfacing_enabled: false, routine_notifications_enabled: false,
       });
@@ -214,9 +241,34 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       expect(updatedPreferences.anniversary_notifications_enabled).toBe(false);
       expect((await json(await request.get(`/api/me/on-this-day?tandem_id=${tandem.id}`), 200)).anniversaries).toEqual([]);
       expect((await json(await request.get(`/api/me/rediscovery/shuffle?tandem_id=${tandem.id}&seed=e2e`), 200)).memory).toBeNull();
-      expect((await json(await request.get(`/api/me/rediscovery/year-review?year=2024&tandem_id=${tandem.id}`), 200)).memory_count).toBeGreaterThan(0);
-      expect((await json(await request.get(`/api/me/rediscovery/collections?tandem_id=${tandem.id}`), 200)).items).toBeDefined();
+      const disabledYearReview = await json(
+        await request.get(`/api/me/rediscovery/year-review?year=2024&tandem_id=${tandem.id}`),
+        200,
+      );
+      expect(disabledYearReview.memory_count).toBe(0);
+      expect(disabledYearReview.highlights).toEqual([]);
+
+      const disabledCollections = await json(
+        await request.get(`/api/me/rediscovery/collections?tandem_id=${tandem.id}`),
+        200,
+      );
+      expect(Array.isArray(disabledCollections.items)).toBe(true);
+      const disabledMemoryIds = disabledCollections.items.flatMap(
+        (item: { memory_ids: string[] }) => item.memory_ids,
+      );
+      expect(disabledMemoryIds).not.toEqual(expect.arrayContaining(createdMemoryIds));
       expect((await json(await request.get('/api/me/notifications'), 200)).items).toBeDefined();
+
+      // Restore the Tandem's normal resurfacing state before validating the
+      // ordinary Memories/navigation surfaces below.
+      const restoredTandemPreference = await browserJson(
+        page,
+        'PATCH',
+        `/api/tandems/${tandem.id}/preferences`,
+        200,
+        { resurfacing_enabled: true, routine_notifications_enabled: true },
+      );
+      expect(restoredTandemPreference.resurfacing_enabled).toBe(true);
 
       const renamed = e2eName('Renamed-Tandem');
       const updatedTandem = await browserJson(page, 'PATCH', `/api/tandems/${tandem.id}`, 200, { name: renamed, timezone: 'UTC' });
@@ -233,7 +285,8 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       await expect(page.locator('.context-kicker')).toHaveText(renamed);
       await page.getByRole('link', { name: 'Memories' }).click();
       await expect(page.getByRole('heading', { name: 'Memories' })).toBeVisible();
-      await expect(page.getByRole('button', { name: `Open memory: ${movie.title}` })).toBeVisible();
+      const movieTitle = page.getByText(movie.title, { exact: true }).first();
+      await expect(movieTitle).toBeVisible();
       await page.getByRole('button', { name: 'Gallery' }).click();
       await expect(page.getByText(movie.title, { exact: true }).first()).toBeVisible();
       await page.getByRole('link', { name: 'Calendar' }).click();
@@ -241,7 +294,7 @@ test.describe('@write @provider @production-safe one-account V1 journey', () => 
       await page.getByRole('button', { name: 'Recently Deleted' }).click();
       await expect(page.getByRole('heading', { name: 'Recently Deleted' })).toBeVisible();
       await page.getByRole('link', { name: 'Memories' }).click();
-      await page.getByRole('button', { name: `Open memory: ${movie.title}` }).click();
+      await page.getByText(movie.title, { exact: true }).first().click();
       await expect(page.getByRole('heading', { name: movie.title })).toBeVisible();
       await page.getByRole('button', { name: /Delete$/ }).click();
       await expect(page.getByRole('dialog', { name: /Move/ })).toBeVisible();
